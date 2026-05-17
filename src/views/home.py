@@ -1,175 +1,102 @@
 import flet as ft
-from core.state import state, Match
+
+from components.loading_state import build_empty_state, build_loading_centered
+from components.match_card import build_match_card
+from core.constants import APP_NAME, LBL_NO_MATCHES_TODAY, LBL_REFRESH
+from core.focus_manager import make_focusable_button
+from core.state import state
 from core.theme import AppColors
 
 
 def build_home_view(
     page_obj: ft.Page,
-    on_load_matches,
+    controller,
     on_select_match,
     on_search_click,
 ) -> ft.View:
 
-    CARD_HEIGHT = 100
-
-    matches_list = ft.Column(spacing=12)
-
-    def on_hover_card(e, container):
-        if e.data == "true":
-            container.scale = 1.02
-            container.shadow = ft.BoxShadow(
-                spread_radius=1,
-                blur_radius=10,
-                color=ft.Colors.with_opacity(0.2, AppColors.PRIMARY),
-                offset=ft.Offset(0, 4),
-            )
-        else:
-            container.scale = 1.0
-            container.shadow = None
-        container.update()
-
-    def build_match_card(match: Match, idx: int):
-        is_live = match.status == "LIVE" or (match.status == "1H" or match.status == "2H" or match.status == "HT")
-
-        score_text = ""
-        if is_live and (match.home_score or match.away_score):
-            score_text = f"{match.home_score} - {match.away_score}"
-
-        time_badge = ft.Container(
-            content=ft.Text(
-                "LIVE" if is_live else match.time,
-                size=11,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.WHITE,
-            ),
-            padding=ft.Padding(8, 4, 8, 4),
-            bgcolor=AppColors.LIVE if is_live else AppColors.PRIMARY,
-            border_radius=6,
-        )
-
-        teams_row = ft.Row(
-            controls=[
-                ft.Text(match.home_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE, expand=True),
-                ft.Text(score_text, size=14, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE),
-                ft.Text(match.away_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE, expand=True, text_align=ft.TextAlign.RIGHT),
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        )
-
-        card_container = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row([time_badge, ft.Text(match.league, size=12, color=ft.Colors.ON_SURFACE_VARIANT)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Container(height=8),
-                    teams_row,
-                ],
-                spacing=0,
-            ),
-            padding=16,
-            border_radius=12,
-            bgcolor=AppColors.get_surface_variant(page_obj),
-            clip_behavior="antiAlias",
-            animate_scale=300,
-            animate=300,
-            ink=True,
-            height=CARD_HEIGHT,
-            key=f"match_{idx}",
-            on_click=lambda _: on_select_match(match),
-            on_hover=lambda e: on_hover_card(e, card_container),
-        )
-        card_container.tab_index = idx + 3
-        card_container.on_focus = lambda e: _on_focus_card(e, card_container)
-        card_container.on_blur = lambda e: _on_blur_card(e, card_container)
-
-        return card_container
-
-    def _on_focus_card(e, ctrl):
-        ctrl.scale = 1.02
-        ctrl.shadow = ft.BoxShadow(
-            spread_radius=1,
-            blur_radius=10,
-            color=ft.Colors.with_opacity(0.2, AppColors.PRIMARY),
-            offset=ft.Offset(0, 4),
-        )
-        ctrl.border = ft.Border.all(2, AppColors.PRIMARY)
-        try:
-            ctrl.update()
-        except Exception:
-            pass
-
-    def _on_blur_card(e, ctrl):
-        ctrl.scale = 1.0
-        ctrl.shadow = None
-        ctrl.border = ft.Border.all(0, ft.Colors.TRANSPARENT)
-        try:
-            ctrl.update()
-        except Exception:
-            pass
+    leagues_column = ft.Column(spacing=8)
+    surface_variant = AppColors.get_surface_variant(page_obj)
 
     def update_list():
-        matches_list.controls.clear()
-
-        for group in state.matches_by_league:
-            league = group.get("league", "")
-            matches = group.get("matches", [])
-
-            if not matches:
-                continue
-
-            league_header = ft.Container(
-                padding=ft.Padding.only(top=16, bottom=8),
-                content=ft.Text(
-                    league,
-                    size=16,
-                    weight=ft.FontWeight.BOLD,
-                    color=AppColors.PRIMARY,
-                ),
-            )
-            matches_list.controls.append(league_header)
-
-            for i, match in enumerate(matches):
-                matches_list.controls.append(build_match_card(match, i))
+        leagues_column.controls.clear()
 
         if state.is_loading and not state.matches_by_league:
-            scroll_content.controls = [
-                header,
-                ft.Container(
-                    expand=True,
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.ProgressRing(color=AppColors.PRIMARY, stroke_width=4)
+            leagues_column.controls.append(build_loading_centered("Loading matches..."))
+        elif state.error_message and not state.matches_by_league:
+            leagues_column.controls.append(
+                build_empty_state(
+                    state.error_message,
+                    icon=ft.Icons.WIFI_OFF_ROUNDED,
                 )
-            ]
-        elif not state.matches_by_league:
-            scroll_content.controls = [
-                header,
-                ft.Container(
-                    expand=True,
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Text("No matches found for today", color=ft.Colors.ON_SURFACE_VARIANT, size=16)
+            )
+        elif state.matches_by_league:
+            for group_idx, group in enumerate(state.matches_by_league):
+                league = group.get("league", "")
+                league_matches = group.get("matches", [])
+
+                if not league_matches:
+                    continue
+
+                tile_controls = []
+                for i, match in enumerate(league_matches):
+                    tile_controls.append(
+                        build_match_card(match, on_select_match, page_obj, i, surface_variant)
+                    )
+
+                exp_tile = ft.ExpansionTile(
+                    title=ft.Text(
+                        f"{league} ({len(league_matches)})",
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ON_SURFACE,
+                    ),
+                    expanded=(group_idx == 0),
+                    collapsed_bgcolor=ft.Colors.TRANSPARENT,
+                    bgcolor=ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE),
+                    controls=tile_controls,
                 )
-            ]
+                exp_tile.on_focus = lambda e, ctrl=exp_tile: _on_tile_focus(ctrl, True)
+                exp_tile.on_blur = lambda e, ctrl=exp_tile: _on_tile_focus(ctrl, False)
+
+                leagues_column.controls.append(exp_tile)
         else:
-            scroll_content.controls = [header, matches_list]
+            leagues_column.controls.append(build_empty_state(LBL_NO_MATCHES_TODAY))
 
         page_obj.update()
+
+    def _on_tile_focus(control: ft.Container, focused: bool):
+        if focused:
+            control.collapsed_bgcolor = ft.Colors.with_opacity(0.12, AppColors.PRIMARY)
+            control.bgcolor = ft.Colors.with_opacity(0.12, AppColors.PRIMARY)
+        else:
+            control.collapsed_bgcolor = ft.Colors.TRANSPARENT
+            control.bgcolor = ft.Colors.with_opacity(0.03, ft.Colors.ON_SURFACE)
+        try:
+            control.update()
+        except Exception:
+            pass
 
     def handle_theme_toggle(e):
+        theme_btn.disabled = True
+        page_obj.update()
         page_obj.theme_mode = ft.ThemeMode.LIGHT if page_obj.theme_mode == ft.ThemeMode.DARK else ft.ThemeMode.DARK
+        theme_btn.content = ft.Icon(
+            ft.Icons.LIGHT_MODE_ROUNDED if page_obj.theme_mode == ft.ThemeMode.DARK else ft.Icons.DARK_MODE_ROUNDED,
+            color=ft.Colors.ON_SURFACE,
+        )
+        theme_btn.disabled = False
         page_obj.update()
 
-    def _on_focus_btn(e):
-        e.control.bgcolor = ft.Colors.with_opacity(0.1, AppColors.PRIMARY)
-        try:
-            e.control.update()
-        except Exception:
-            pass
-
-    def _on_blur_btn(e):
-        e.control.bgcolor = None
-        try:
-            e.control.update()
-        except Exception:
-            pass
+    def handle_refresh(e):
+        refresh_btn.disabled = True
+        refresh_btn.content = ft.ProgressRing(
+            color=ft.Colors.ON_SURFACE, stroke_width=2, width=20, height=20
+        )
+        page_obj.update()
+        state.matches_by_league = []
+        state.is_loading = True
+        update_list()
+        page_obj.run_task(controller.load_matches)
 
     search_btn = ft.Container(
         content=ft.Icon(ft.Icons.SEARCH_ROUNDED, color=ft.Colors.ON_SURFACE),
@@ -177,10 +104,10 @@ def build_home_view(
         border_radius=10,
         ink=True,
         on_click=lambda _: on_search_click(),
+        tooltip="Search",
     )
     search_btn.tab_index = 1
-    search_btn.on_focus = _on_focus_btn
-    search_btn.on_blur = _on_blur_btn
+    make_focusable_button(search_btn)
 
     theme_btn = ft.Container(
         content=ft.Icon(
@@ -191,10 +118,21 @@ def build_home_view(
         border_radius=10,
         ink=True,
         on_click=handle_theme_toggle,
+        tooltip="Toggle theme",
     )
     theme_btn.tab_index = 2
-    theme_btn.on_focus = _on_focus_btn
-    theme_btn.on_blur = _on_blur_btn
+    make_focusable_button(theme_btn)
+
+    refresh_btn = ft.Container(
+        content=ft.Icon(ft.Icons.REFRESH_ROUNDED, color=ft.Colors.ON_SURFACE),
+        padding=10,
+        border_radius=10,
+        ink=True,
+        on_click=handle_refresh,
+        tooltip=LBL_REFRESH,
+    )
+    refresh_btn.tab_index = 3
+    make_focusable_button(refresh_btn)
 
     header = ft.Container(
         padding=ft.Padding.only(left=24, right=24, top=24, bottom=8),
@@ -203,12 +141,13 @@ def build_home_view(
                 ft.Row(
                     controls=[
                         ft.Image(src="icon.png", width=32, height=32, fit="contain"),
-                        ft.Text("Score808 TV", size=24, weight=ft.FontWeight.BOLD),
+                        ft.Text(APP_NAME, size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
                     ],
                     spacing=12,
                 ),
                 ft.Row(
-                    controls=[search_btn, theme_btn],
+                    controls=[refresh_btn, search_btn, theme_btn],
+                    spacing=4,
                 )
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
@@ -216,7 +155,7 @@ def build_home_view(
     )
 
     scroll_content = ft.Column(
-        controls=[header, matches_list],
+        controls=[header, leagues_column],
         expand=False,
         spacing=0,
     )
@@ -244,10 +183,13 @@ def build_home_view(
         padding=0,
     )
 
-    if not state.matches_by_league and not state.is_loading:
-        page_obj.run_task(on_load_matches)
+    state.on_matches_loaded = update_list
 
-    page_obj.update_matches_list = update_list
-    update_list()
+    if not state.matches_by_league and not state.is_loading:
+        state.is_loading = True
+        update_list()
+        page_obj.run_task(controller.load_matches)
+    else:
+        update_list()
 
     return view

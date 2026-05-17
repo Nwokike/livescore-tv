@@ -1,7 +1,9 @@
 import flet as ft
-import flet_video as fv
-from core.theme import AppColors
+
+from core.constants import LBL_LOADING_STREAM, LBL_PLAYBACK_ENDED, LBL_PLAYBACK_ERROR, LBL_STREAM_FAILED
+from core.focus_manager import make_focusable_button
 from core.state import state
+from core.theme import AppColors
 
 
 def build_player_view(
@@ -10,13 +12,14 @@ def build_player_view(
     on_back,
 ) -> ft.View:
 
+    import flet_video as fv
+
     video = fv.Video(
         autoplay=True,
         expand=True,
-        aspect_ratio=16 / 9,
         show_controls=True,
         wakelock=True,
-        filter_quality=ft.FilterQuality.HIGH,
+        filter_quality=ft.FilterQuality.MEDIUM,
         pause_upon_entering_background_mode=True,
         resume_upon_entering_foreground_mode=True,
         on_error=lambda e: _on_error(e, page_obj),
@@ -24,7 +27,7 @@ def build_player_view(
     )
 
     status_text = ft.Text(
-        "Loading Stream...",
+        LBL_LOADING_STREAM,
         size=16,
         color=ft.Colors.WHITE,
         weight=ft.FontWeight.W_500,
@@ -35,7 +38,7 @@ def build_player_view(
 
     overlay = ft.Container(
         expand=True,
-        bgcolor=ft.Colors.with_opacity(0.8, ft.Colors.BLACK),
+        bgcolor=ft.Colors.with_opacity(0.85, ft.Colors.BLACK),
         alignment=ft.Alignment.CENTER,
         content=ft.Column(
             [
@@ -48,19 +51,17 @@ def build_player_view(
         ),
     )
 
-    def _on_focus_btn(e):
-        e.control.bgcolor = ft.Colors.with_opacity(0.5, ft.Colors.BLACK)
-        try:
-            e.control.update()
-        except Exception:
-            pass
-
-    def _on_blur_btn(e):
-        e.control.bgcolor = ft.Colors.with_opacity(0.3, ft.Colors.BLACK)
-        try:
-            e.control.update()
-        except Exception:
-            pass
+    def on_back_click(e):
+        if len(page_obj.views) > 1:
+            for control in page_obj.views[-1].controls:
+                if hasattr(control, "pause"):
+                    try:
+                        control.pause()
+                    except Exception:
+                        pass
+            state.reset_player()
+            page_obj.views.pop()
+            page_obj.update()
 
     back_btn = ft.Container(
         left=24,
@@ -70,13 +71,12 @@ def build_player_view(
             icon_color=ft.Colors.WHITE,
             icon_size=24,
             bgcolor=ft.Colors.with_opacity(0.3, ft.Colors.BLACK),
-            on_click=lambda _: on_back(),
+            on_click=on_back_click,
             tooltip="Back",
         ),
     )
     back_btn.tab_index = 1
-    back_btn.on_focus = _on_focus_btn
-    back_btn.on_blur = _on_blur_btn
+    make_focusable_button(back_btn)
 
     async def load_stream():
         try:
@@ -85,7 +85,7 @@ def build_player_view(
             overlay.visible = False
             page_obj.update()
         except Exception:
-            status_text.value = "Failed to load stream"
+            status_text.value = LBL_STREAM_FAILED
             loading.visible = False
             page_obj.update()
 
@@ -114,7 +114,7 @@ def _on_error(e, page_obj: ft.Page):
     state.player_error = e.data
     try:
         page_obj.snack_bar = ft.SnackBar(
-            ft.Text("Playback error", color=ft.Colors.WHITE),
+            ft.Text(LBL_PLAYBACK_ERROR, color=ft.Colors.WHITE),
             bgcolor=AppColors.ERROR,
             duration=3000,
         )
@@ -127,7 +127,7 @@ def _on_error(e, page_obj: ft.Page):
 def _on_ended(page_obj: ft.Page):
     try:
         page_obj.snack_bar = ft.SnackBar(
-            ft.Text("Playback ended", color=ft.Colors.WHITE),
+            ft.Text(LBL_PLAYBACK_ENDED, color=ft.Colors.WHITE),
             bgcolor=AppColors.SUCCESS,
             duration=3000,
         )

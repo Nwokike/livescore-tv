@@ -1,111 +1,92 @@
+import asyncio
+
 import flet as ft
-from core.state import state, Match
+
+from components.loading_state import build_empty_state, build_loading_centered
+from components.match_card import build_match_card
+from core.constants import LBL_NO_RESULTS, LBL_SEARCH_HINT, MAX_SEARCH_QUERY_LENGTH, SEARCH_DEBOUNCE_SEC
+from core.focus_manager import make_focusable_button
+from core.state import state
 from core.theme import AppColors
 
 
 def build_search_view(
     page_obj: ft.Page,
-    on_search,
+    controller,
     on_select_match,
     on_back,
 ) -> ft.View:
 
+    _debounce_task: asyncio.Task | None = None
+    surface_variant = AppColors.get_surface_variant(page_obj)
+
+    def _cancel_debounce():
+        nonlocal _debounce_task
+        if _debounce_task and not _debounce_task.done():
+            _debounce_task.cancel()
+
+    def _do_search(query: str):
+        _cancel_debounce()
+        if not query or state.is_loading:
+            return
+        if len(query) > MAX_SEARCH_QUERY_LENGTH:
+            query = query[:MAX_SEARCH_QUERY_LENGTH]
+        search_btn.disabled = True
+        search_spinner.visible = True
+        page_obj.update()
+        page_obj.run_task(controller.load_search, query)
+
+    def on_search_change(e):
+        nonlocal _debounce_task
+        query = e.control.value.strip() if e.control.value else ""
+        if not query:
+            state.search_results = []
+            state.search_query = ""
+            update_results()
+            return
+        if len(query) > MAX_SEARCH_QUERY_LENGTH:
+            e.control.value = query[:MAX_SEARCH_QUERY_LENGTH]
+            query = query[:MAX_SEARCH_QUERY_LENGTH]
+        _cancel_debounce()
+        _debounce_task = asyncio.create_task(_delayed_search(query))
+
+    async def _delayed_search(query: str):
+        try:
+            await asyncio.sleep(SEARCH_DEBOUNCE_SEC)
+            if query and not state.is_loading:
+                page_obj.run_task(controller.load_search, query)
+        except asyncio.CancelledError:
+            pass
+
     search_field = ft.TextField(
-        hint_text="Search teams or leagues...",
+        hint_text=LBL_SEARCH_HINT,
         border=ft.InputBorder.OUTLINE,
         border_radius=12,
         prefix_icon=ft.Icons.SEARCH_ROUNDED,
-        on_submit=lambda e: page_obj.run_task(on_search, e.control.value.strip()),
+        on_submit=lambda e: _do_search(e.control.value.strip()),
+        on_change=lambda e: on_search_change(e),
         autofocus=True,
         expand=True,
     )
 
     results_list = ft.Column(spacing=12)
 
-    def build_match_card(match: Match, idx: int):
-        is_live = match.status in ("LIVE", "1H", "2H", "HT")
-
-        score_text = ""
-        if is_live and (match.home_score or match.away_score):
-            score_text = f"{match.home_score} - {match.away_score}"
-
-        time_badge = ft.Container(
-            content=ft.Text(
-                "LIVE" if is_live else match.time,
-                size=11,
-                weight=ft.FontWeight.BOLD,
-                color=ft.Colors.WHITE,
-            ),
-            padding=ft.Padding(8, 4, 8, 4),
-            bgcolor=AppColors.LIVE if is_live else AppColors.PRIMARY,
-            border_radius=6,
-        )
-
-        card_container = ft.Container(
-            content=ft.Column(
-                controls=[
-                    ft.Row([time_badge, ft.Text(match.league, size=12, color=ft.Colors.ON_SURFACE_VARIANT)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                    ft.Container(height=8),
-                    ft.Row(
-                        controls=[
-                            ft.Text(match.home_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE, expand=True),
-                            ft.Text(score_text, size=14, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE),
-                            ft.Text(match.away_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE, expand=True, text_align=ft.TextAlign.RIGHT),
-                        ],
-                        alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                    ),
-                ],
-                spacing=0,
-            ),
-            padding=16,
-            border_radius=12,
-            bgcolor=AppColors.get_surface_variant(page_obj),
-            clip_behavior="antiAlias",
-            animate=300,
-            ink=True,
-            on_click=lambda _: on_select_match(match),
-        )
-
-        return card_container
-
     def update_results():
         results_list.controls.clear()
+        search_btn.disabled = False
+        search_spinner.visible = False
 
         if state.is_loading:
-            results_list.controls.append(
-                ft.Container(
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.ProgressRing(color=AppColors.PRIMARY),
-                    padding=40,
-                )
-            )
+            results_list.controls.append(build_loading_centered("Searching..."))
         elif state.search_results:
             for i, match in enumerate(state.search_results):
-                results_list.controls.append(build_match_card(match, i))
-        elif state.search_query:
-            results_list.controls.append(
-                ft.Container(
-                    alignment=ft.Alignment.CENTER,
-                    content=ft.Text("No matches found", color=ft.Colors.ON_SURFACE_VARIANT),
-                    padding=40,
+                results_list.controls.append(
+                    build_match_card(match, on_select_match, page_obj, i, surface_variant)
                 )
-            )
+        elif state.search_query:
+            results_list.controls.append(build_empty_state(LBL_NO_RESULTS, icon=ft.Icons.SEARCH_OFF_ROUNDED))
 
         page_obj.update()
-
-    def _on_focus_btn(e):
-        e.control.bgcolor = ft.Colors.with_opacity(0.1, AppColors.PRIMARY)
-        try:
-            e.control.update()
-        except Exception:
-            pass
-
-    def _on_blur_btn(e):
-        e.control.bgcolor = None
-        try:
-            e.control.update()
-        except Exception:
-            pass
 
     back_btn = ft.Container(
         content=ft.Icon(ft.Icons.ARROW_BACK_ROUNDED, color=ft.Colors.ON_SURFACE),
@@ -113,19 +94,55 @@ def build_search_view(
         border_radius=10,
         ink=True,
         on_click=lambda _: on_back(),
+        tooltip="Back",
     )
     back_btn.tab_index = 0
-    back_btn.on_focus = _on_focus_btn
-    back_btn.on_blur = _on_blur_btn
+    make_focusable_button(back_btn)
+
+    search_btn = ft.Container(
+        content=ft.Icon(ft.Icons.SEARCH_ROUNDED, color=AppColors.PRIMARY),
+        padding=10,
+        border_radius=10,
+        ink=True,
+        on_click=lambda _: _do_search(search_field.value),
+    )
+    search_btn.tab_index = 1
+    make_focusable_button(search_btn)
+
+    search_spinner = ft.ProgressRing(
+        color=AppColors.PRIMARY, stroke_width=3, width=20, height=20, visible=False
+    )
 
     header = ft.Container(
         padding=ft.Padding.only(left=24, right=24, top=24, bottom=16),
-        content=ft.Row(
-            controls=[
-                back_btn,
-                search_field,
+        content=ft.Column(
+            [
+                ft.Row(
+                    [
+                        back_btn,
+                        ft.Container(
+                            width=36,
+                            height=36,
+                            border_radius=10,
+                            alignment=ft.Alignment.CENTER,
+                            content=ft.Image(
+                                src="icon.png",
+                                width=24,
+                                height=24,
+                                fit="contain",
+                            ),
+                        ),
+                        ft.Text("Search", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
+                    ],
+                    spacing=12,
+                ),
+                ft.Container(height=8),
+                ft.Row(
+                    [search_field, search_btn, search_spinner],
+                    spacing=8,
+                ),
             ],
-            spacing=12,
+            spacing=0,
         )
     )
 
@@ -143,7 +160,7 @@ def build_search_view(
         auto_scroll=True,
     )
 
-    page_obj.refresh_search_results = update_results
+    state.on_search_refreshed = update_results
 
     return ft.View(
         route="/search",

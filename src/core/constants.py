@@ -1,0 +1,45 @@
+APP_NAME = "Score808 TV"
+APP_VERSION = "1.0.0"
+APP_TAGLINE = "Live football. No server needed."
+
+LBL_SPLASH_TAGLINE = "Live football. No server needed."
+LBL_LOADING_STREAM = "Loading Stream..."
+LBL_LOADING = "Loading..."
+LBL_AVAILABLE_STREAMS = "Available Streams"
+LBL_SEARCH_HINT = "Search teams or leagues..."
+LBL_NO_MATCHES_TODAY = "No matches scheduled for today"
+LBL_NO_STREAMS = "No streams available"
+LBL_NO_RESULTS = "No matches found"
+LBL_INSTALL_PLAYER = "Install a Player"
+LBL_INSTALL_PLAYER_DESC = "To stream this match, please install one of the following players. We recommend KTV Player for the best experience."
+LBL_NOT_NOW = "Not now"
+LBL_DOWNLOAD_UPTODOWN = "Download from Uptodown"
+LBL_PLAYBACK_ERROR = "Playback error"
+LBL_PLAYBACK_ENDED = "Playback ended"
+LBL_STREAM_FAILED = "Failed to load stream"
+LBL_NO_INTERNET = "No internet connection. Please check your network and try again."
+LBL_NO_MATCHES_FOUND = "No matches found"
+LBL_RETRY = "Retry"
+LBL_REFRESH = "Refresh"
+LBL_LOADING_MATCHES = "Loading matches..."
+
+ERR_NETWORK = "Network error or stream unavailable."
+ERR_SCRAPER_FAILED = "Source servers undergoing maintenance"
+ERR_STREAM_RESOLVE = "Could not resolve stream URL"
+ERR_LOAD_FAILED = "Failed to load content"
+
+MAX_SEARCH_QUERY_LENGTH = 200
+CACHE_TTL_MATCHES = 300
+CACHE_TTL_STREAMS = 60
+CACHE_TTL_SEARCH = 120
+CACHE_SWEEP_INTERVAL = 300
+CACHE_MEM_MAX_SIZE = 100
+HTTP_TIMEOUT = 15
+HTTP_MAX_CONNECTIONS = 10
+HTTP_MAX_KEEPALIVE = 5
+HTTP_MAX_RETRIES = 3
+ANIMATE_DURATION = 150
+CARD_HEIGHT = 100
+RATE_LIMIT_MAX_CALLS = 10
+RATE_LIMIT_WINDOW = 60
+SEARCH_DEBOUNCE_SEC = 0.5

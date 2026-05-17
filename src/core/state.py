@@ -1,5 +1,6 @@
-import flet as ft
 from dataclasses import dataclass
+
+import flet as ft
 
 
 @dataclass
@@ -9,7 +10,7 @@ class Match:
     away_team: str
     league: str
     time: str
-    status: str  # "NS" (not started), "LIVE", "FT", etc.
+    status: str
     home_score: str = ""
     away_score: str = ""
     poster: str = ""
@@ -22,28 +23,28 @@ class StreamChannel:
     quality: str = ""
 
 
-@dataclass
-class MatchWithStreams:
-    match: Match
-    channels: list[StreamChannel]
-
-
 @ft.observable
 class AppState:
     is_loading: bool = False
     search_query: str = ""
-    matches_by_league: list[dict] = []  # [{"league": str, "matches": [Match]}]
+    matches_by_league: list[dict] = []
     search_results: list[Match] = []
     selected_match: Match | None = None
     match_channels: list[StreamChannel] = []
     stream_url: str | None = None
     player_error: str | None = None
     search_has_more: bool = True
+    error_message: str | None = None
 
-    def __init__(self):
-        self.matches_by_league = []
-        self.search_results = []
+    def reset_player(self):
+        self.stream_url = None
+        self.player_error = None
         self.match_channels = []
+
+    def reset_search(self):
+        self.search_query = ""
+        self.search_results = []
+        self.search_has_more = True
 
 
 state = AppState()
