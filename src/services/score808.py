@@ -117,13 +117,15 @@ class Score808Scraper:
                 if any(x in href for x in ["stream", "play", "watch", "embed", "m3u8"]):
                     name = link.get_text().strip() or "Stream"
                     quality = self._extract_quality(name, href)
-                    channels.append(StreamChannel(name=name, url=href, quality=quality))
+                    full_url = self._make_absolute(href)
+                    channels.append(StreamChannel(name=name, url=full_url, quality=quality))
 
             for iframe in soup.find_all("iframe", src=True):
                 src = iframe["src"]
                 name = iframe.get("title", "").strip() or "Stream"
                 quality = self._extract_quality(name, src)
-                channels.append(StreamChannel(name=name, url=src, quality=quality))
+                full_url = self._make_absolute(src)
+                channels.append(StreamChannel(name=name, url=full_url, quality=quality))
 
             logger.info("Found %d channels on match page", len(channels))
         except Exception:
@@ -158,6 +160,16 @@ class Score808Scraper:
             logger.exception("Unexpected error in resolve_stream_url")
 
         return None
+
+    @staticmethod
+    def _make_absolute(url: str) -> str:
+        if url.startswith(("http://", "https://")):
+            return url
+        if url.startswith("//"):
+            return "https:" + url
+        if url.startswith("/"):
+            return f"{SCORE808_BASE_URL}{url}"
+        return f"{SCORE808_BASE_URL}/{url}"
 
     @staticmethod
     def _extract_quality(name: str, url: str) -> str:

@@ -8,6 +8,35 @@ from core.state import Match, state
 from core.theme import AppColors
 
 
+def _status_badge(status: str, time: str) -> ft.Container:
+    is_live = status in ("LIVE", "1H", "2H", "HT")
+    color = AppColors.LIVE if is_live else AppColors.PRIMARY
+    label = "LIVE" if is_live else (time if time else "TBD")
+
+    if is_live:
+        return ft.Container(
+            content=ft.Row(
+                [
+                    ft.Container(
+                        width=8, height=8, border_radius=4, bgcolor=ft.Colors.WHITE,
+                        animate_scale=500,
+                    ),
+                    ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+                ],
+                spacing=6,
+            ),
+            padding=ft.Padding(14, 7, 14, 7),
+            bgcolor=color,
+            border_radius=8,
+        )
+    return ft.Container(
+        content=ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
+        padding=ft.Padding(14, 7, 14, 7),
+        bgcolor=color,
+        border_radius=8,
+    )
+
+
 def build_match_detail_view(
     page_obj: ft.Page,
     match: Match,
@@ -51,35 +80,27 @@ def build_match_detail_view(
     score_text = ""
     if is_live and (match.home_score or match.away_score):
         score_text = f"{match.home_score} - {match.away_score}"
-
-    status_badge = ft.Container(
-        content=ft.Text(
-            "LIVE" if is_live else match.time,
-            size=12,
-            weight=ft.FontWeight.BOLD,
-            color=ft.Colors.WHITE,
-        ),
-        padding=ft.Padding(12, 6, 12, 6),
-        bgcolor=AppColors.LIVE if is_live else AppColors.PRIMARY,
-        border_radius=8,
-    )
+    elif match.status == "FT":
+        score_text = f"{match.home_score} - {match.away_score}"
 
     header = ft.Container(
-        padding=ft.Padding.only(left=24, right=24, top=24, bottom=24),
+        padding=ft.Padding.only(left=20, right=20, top=20, bottom=24),
         content=ft.Column(
             controls=[
                 ft.Row(controls=[back_btn]),
-                ft.Container(height=16),
+                ft.Container(height=20),
                 ft.Container(
                     alignment=ft.Alignment.CENTER,
-                    content=status_badge,
+                    content=_status_badge(match.status, match.time),
                 ),
-                ft.Container(height=16),
-                ft.Text(match.home_team, size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
-                ft.Text(score_text, size=28, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
-                ft.Text(match.away_team, size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=8),
-                ft.Text(match.league, size=14, color=ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
+                ft.Container(height=20),
+                ft.Text(match.home_team, size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
+                ft.Container(height=4),
+                ft.Text(score_text if score_text else "vs", size=32, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
+                ft.Container(height=4),
+                ft.Text(match.away_team, size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
+                ft.Container(height=12),
+                ft.Text(match.league, size=13, color=ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=0,
@@ -87,18 +108,23 @@ def build_match_detail_view(
     )
 
     channels_header = ft.Container(
-        padding=ft.Padding.only(left=24, right=24, top=16, bottom=8),
+        padding=ft.Padding.only(left=20, right=20, top=16, bottom=12),
         content=ft.Row(
             [
-                ft.Icon(ft.Icons.STREAM_ROUNDED, color=AppColors.PRIMARY, size=20),
+                ft.Container(
+                    content=ft.Icon(ft.Icons.STREAM_ROUNDED, color=AppColors.PRIMARY, size=18),
+                    padding=8,
+                    bgcolor=ft.Colors.with_opacity(0.08, AppColors.PRIMARY),
+                    border_radius=8,
+                ),
                 ft.Text(
                     LBL_AVAILABLE_STREAMS,
-                    size=18,
-                    weight=ft.FontWeight.BOLD,
+                    size=16,
+                    weight=ft.FontWeight.W_600,
                     color=ft.Colors.ON_SURFACE,
                 ),
             ],
-            spacing=8,
+            spacing=10,
         ),
     )
 

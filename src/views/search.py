@@ -69,7 +69,7 @@ def build_search_view(
         expand=True,
     )
 
-    results_list = ft.Column(spacing=12)
+    results_list = ft.Column(spacing=10)
 
     def update_results():
         results_list.controls.clear()
@@ -114,29 +114,30 @@ def build_search_view(
     )
 
     header = ft.Container(
-        padding=ft.Padding.only(left=24, right=24, top=24, bottom=16),
+        padding=ft.Padding.only(left=20, right=20, top=20, bottom=12),
         content=ft.Column(
             [
                 ft.Row(
                     [
                         back_btn,
                         ft.Container(
-                            width=36,
-                            height=36,
-                            border_radius=10,
+                            width=32,
+                            height=32,
+                            border_radius=8,
                             alignment=ft.Alignment.CENTER,
+                            bgcolor=ft.Colors.with_opacity(0.06, ft.Colors.ON_SURFACE),
                             content=ft.Image(
                                 src="icon.png",
-                                width=24,
-                                height=24,
+                                width=20,
+                                height=20,
                                 fit="contain",
                             ),
                         ),
-                        ft.Text("Search", size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
+                        ft.Text("Search", size=22, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE),
                     ],
-                    spacing=12,
+                    spacing=10,
                 ),
-                ft.Container(height=8),
+                ft.Container(height=12),
                 ft.Row(
                     [search_field, search_btn, search_spinner],
                     spacing=8,

@@ -29,7 +29,9 @@ from views.splash import build_splash_view
 logger = logging.getLogger("score808.controller")
 
 
-def _dict_to_match(d: dict) -> Match:
+def _dict_to_match(d: dict | Match) -> Match:
+    if isinstance(d, Match):
+        return d
     return Match(
         id=str(d.get("id", "")),
         home_team=d.get("home_team", ""),
@@ -43,7 +45,9 @@ def _dict_to_match(d: dict) -> Match:
     )
 
 
-def _dict_to_channel(d: dict) -> StreamChannel:
+def _dict_to_channel(d: dict | StreamChannel) -> StreamChannel:
+    if isinstance(d, StreamChannel):
+        return d
     return StreamChannel(
         name=d.get("name", ""),
         url=d.get("url", ""),
@@ -163,6 +167,7 @@ class AppController:
             if cached:
                 state.matches_by_league = _restore_matches(cached)
                 state.error_message = None
+                state.is_loading = False
                 self._update_matches_list()
                 logger.info("Loaded %d leagues from cache", len(cached))
                 return
@@ -212,7 +217,10 @@ class AppController:
             cache_key = f"search_{query.lower()}"
             cached = await self.cache.get_json(cache_key)
             if cached:
-                state.search_results = [_dict_to_match(m) for m in cached]
+                state.search_results = [
+                    _dict_to_match(m) if not isinstance(m, Match) else m
+                    for m in cached
+                ]
                 state.search_has_more = False
                 state.is_loading = False
                 self._refresh_search_results()
