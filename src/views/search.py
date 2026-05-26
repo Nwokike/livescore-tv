@@ -72,19 +72,23 @@ def build_search_view(
     results_list = ft.Column(spacing=10)
 
     def update_results():
-        results_list.controls.clear()
         search_btn.disabled = False
         search_spinner.visible = False
 
         if state.is_loading:
-            results_list.controls.append(build_loading_centered("Searching..."))
+            scroll_content.controls = [
+                header,
+                build_loading_centered("Searching..."),
+            ]
         elif state.search_results:
+            results_list.controls.clear()
             for i, match in enumerate(state.search_results):
-                results_list.controls.append(
-                    build_match_card(match, on_select_match, page_obj, i, surface_variant)
-                )
+                results_list.controls.append(build_match_card(match, on_select_match, page_obj, i, surface_variant))
+            scroll_content.controls = [header, results_list]
         elif state.search_query:
-            results_list.controls.append(build_empty_state(LBL_NO_RESULTS, icon=ft.Icons.SEARCH_OFF_ROUNDED))
+            scroll_content.controls = [header, build_empty_state(LBL_NO_RESULTS, icon=ft.Icons.SEARCH_OFF_ROUNDED)]
+        else:
+            scroll_content.controls = [header]
 
         page_obj.update()
 
@@ -109,9 +113,7 @@ def build_search_view(
     search_btn.tab_index = 1
     make_focusable_button(search_btn)
 
-    search_spinner = ft.ProgressRing(
-        color=AppColors.PRIMARY, stroke_width=3, width=20, height=20, visible=False
-    )
+    search_spinner = ft.ProgressRing(color=AppColors.PRIMARY, stroke_width=3, width=20, height=20, visible=False)
 
     header = ft.Container(
         padding=ft.Padding.only(left=20, right=20, top=20, bottom=12),
@@ -144,11 +146,11 @@ def build_search_view(
                 ),
             ],
             spacing=0,
-        )
+        ),
     )
 
     scroll_content = ft.Column(
-        controls=[header, results_list],
+        controls=[header],
         expand=False,
         spacing=0,
     )
@@ -162,6 +164,9 @@ def build_search_view(
     )
 
     state.on_search_refreshed = update_results
+    page_obj.refresh_search_results = update_results
+
+    update_results()
 
     return ft.View(
         route="/search",

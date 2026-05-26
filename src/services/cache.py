@@ -52,9 +52,7 @@ class Cache:
                     expires INTEGER
                 )
             """)
-            await self._db.execute(
-                "CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache(expires)"
-            )
+            await self._db.execute("CREATE INDEX IF NOT EXISTS idx_cache_expires ON cache(expires)")
             await self._db.commit()
             logger.info("Cache database initialized at %s", self.db_path)
         return self._db
@@ -82,9 +80,7 @@ class Cache:
             return json.dumps(mem, default=_encode_dataclass)
         try:
             db = await self._get_db()
-            cursor = await db.execute(
-                "SELECT value, expires FROM cache WHERE key = ?", (key,)
-            )
+            cursor = await db.execute("SELECT value, expires FROM cache WHERE key = ?", (key,))
             row = await cursor.fetchone()
             if row:
                 value, expires = row
@@ -132,9 +128,7 @@ class Cache:
             return mem
         try:
             db = await self._get_db()
-            cursor = await db.execute(
-                "SELECT value, expires FROM cache WHERE key = ?", (key,)
-            )
+            cursor = await db.execute("SELECT value, expires FROM cache WHERE key = ?", (key,))
             row = await cursor.fetchone()
             if row:
                 value, expires = row
@@ -170,9 +164,7 @@ class Cache:
     async def sweep_expired(self):
         try:
             db = await self._get_db()
-            cursor = await db.execute(
-                "DELETE FROM cache WHERE expires < ?", (int(time.time()),)
-            )
+            cursor = await db.execute("DELETE FROM cache WHERE expires < ?", (int(time.time()),))
             await db.commit()
             deleted = cursor.rowcount
             if deleted > 0:
@@ -185,6 +177,7 @@ class Cache:
             while True:
                 await asyncio.sleep(interval)
                 await self.sweep_expired()
+
         self._sweep_task = asyncio.create_task(_sweep_loop())
         logger.info("Cache sweep started (interval=%ds)", interval)
 

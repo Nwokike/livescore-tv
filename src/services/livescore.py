@@ -63,15 +63,17 @@ class LivescoreAPI:
                 return matches
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (502, 503, 504) and attempt < HTTP_MAX_RETRIES - 1:
-                    wait = 2 ** attempt
-                    logger.warning("HTTP %d, retry %d/%d in %ds", e.response.status_code, attempt + 1, HTTP_MAX_RETRIES, wait)
+                    wait = 2**attempt
+                    logger.warning(
+                        "HTTP %d, retry %d/%d in %ds", e.response.status_code, attempt + 1, HTTP_MAX_RETRIES, wait
+                    )
                     await __import__("asyncio").sleep(wait)
                     continue
                 logger.error("HTTP error %d for %s", e.response.status_code, url)
                 raise NetworkError(f"API returned {e.response.status_code}") from e
             except httpx.RequestError as e:
                 if attempt < HTTP_MAX_RETRIES - 1:
-                    wait = 2 ** attempt
+                    wait = 2**attempt
                     logger.warning("Request error, retry %d/%d in %ds: %s", attempt + 1, HTTP_MAX_RETRIES, wait, e)
                     await __import__("asyncio").sleep(wait)
                     continue
@@ -93,15 +95,38 @@ class LivescoreAPI:
             events = stage.get("Events", [])
 
             for event in events:
+                t1_list = event.get("T1", [])
+                t2_list = event.get("T2", [])
+                if not t1_list or not t2_list:
+                    continue
+                t1 = t1_list[0]
+                t2 = t2_list[0]
+
+                home_team = t1.get("Nm", "")
+                away_team = t2.get("Nm", "")
+
+                home_img = t1.get("Img", "")
+                away_img = t2.get("Img", "")
+
+                home_logo = f"https://lsm-static-prod.livescore.com/medium/{home_img}" if home_img else ""
+                away_logo = f"https://lsm-static-prod.livescore.com/medium/{away_img}" if away_img else ""
+
+                tr1 = event.get("Tr1")
+                tr2 = event.get("Tr2")
+                home_score = str(tr1) if tr1 is not None else ""
+                away_score = str(tr2) if tr2 is not None else ""
+
                 match = Match(
                     id=str(event.get("Eid", "")),
-                    home_team=event.get("Tr1", ""),
-                    away_team=event.get("Tr2", ""),
+                    home_team=home_team,
+                    away_team=away_team,
                     league=league,
                     time=self._format_time(event.get("Esd", 0)),
                     status=event.get("Eps", "NS"),
-                    home_score=str(event.get("Tr1S", "")),
-                    away_score=str(event.get("Tr2S", "")),
+                    home_score=home_score,
+                    away_score=away_score,
+                    home_logo=home_logo,
+                    away_logo=away_logo,
                 )
                 if match.home_team and match.away_team:
                     matches.append(match)
@@ -112,8 +137,13 @@ class LivescoreAPI:
         if not timestamp:
             return ""
         try:
-            dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
-            local_dt = dt.astimezone()
-            return local_dt.strftime("%H:%M")
+            ts_str = str(timestamp)
+            if len(ts_str) == 14:
+                # Parse YYYYMMDDHHMMSS as UTC
+                dt = datetime.strptime(ts_str, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+                # Convert to local timezone
+                local_dt = dt.astimezone()
+                return local_dt.strftime("%H:%M")
         except Exception:
-            return ""
+            pass
+        return ""

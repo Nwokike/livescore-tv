@@ -59,22 +59,58 @@ def build_match_card(
         border_radius=6,
     )
 
+    home_logo = (
+        ft.Image(src=match.home_logo, width=20, height=20, fit="contain")
+        if match.home_logo
+        else ft.Icon(ft.Icons.SHIELD_ROUNDED, size=20, color=ft.Colors.ON_SURFACE_VARIANT)
+    )
+    away_logo = (
+        ft.Image(src=match.away_logo, width=20, height=20, fit="contain")
+        if match.away_logo
+        else ft.Icon(ft.Icons.SHIELD_ROUNDED, size=20, color=ft.Colors.ON_SURFACE_VARIANT)
+    )
+
     teams_row = ft.Row(
         controls=[
             ft.Column(
                 controls=[
-                    ft.Text(match.home_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE),
-                    ft.Text(match.away_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE),
+                    ft.Row(
+                        [
+                            home_logo,
+                            ft.Text(match.home_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE),
+                        ],
+                        spacing=8,
+                        tight=True,
+                    ),
+                    ft.Row(
+                        [
+                            away_logo,
+                            ft.Text(match.away_team, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE),
+                        ],
+                        spacing=8,
+                        tight=True,
+                    ),
                 ],
-                spacing=4,
+                spacing=8,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             ft.Container(width=12),
             ft.Column(
                 controls=[
-                    ft.Text(score_display if score_display else "vs", size=15, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE_VARIANT),
+                    ft.Text(
+                        score_display if score_display else "vs",
+                        size=15,
+                        weight=ft.FontWeight.BOLD,
+                        color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE_VARIANT,
+                    ),
                     ft.Container(height=4),
-                    ft.Text(match.league, size=10, color=ft.Colors.ON_SURFACE_VARIANT, max_lines=1, overflow=ft.TextOverflow.ELLIPSIS),
+                    ft.Text(
+                        match.league,
+                        size=10,
+                        color=ft.Colors.ON_SURFACE_VARIANT,
+                        max_lines=1,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
                 ],
                 spacing=0,
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,

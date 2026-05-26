@@ -1,3 +1,4 @@
+import datetime
 from dataclasses import dataclass
 
 import flet as ft
@@ -14,6 +15,8 @@ class Match:
     home_score: str = ""
     away_score: str = ""
     poster: str = ""
+    home_logo: str = ""
+    away_logo: str = ""
 
 
 @dataclass
@@ -27,6 +30,7 @@ class StreamChannel:
 class AppState:
     is_loading: bool = False
     search_query: str = ""
+    selected_date: str = datetime.date.today().strftime("%Y-%m-%d")
     matches_by_league: list[dict] = []
     search_results: list[Match] = []
     selected_match: Match | None = None

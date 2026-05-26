@@ -1,5 +1,5 @@
 [project]
-name = "score808-tv"
+name = "livescore-tv"
 version = "1.0.0"
 description = "Lightweight client-side Android TV / mobile / desktop app for watching live football matches."
 readme = "README.md"
@@ -14,15 +14,15 @@ dependencies = [
 ]
 
 [tool.flet]
-org = "com.score808"
-product = "Score808 TV"
+org = "com.livescore"
+product = "Livescore TV"
 build_number = 1
 
 [tool.flet.app]
 path = "src"
 
 [tool.flet.android]
-bundle_id = "com.score808.tv"
+bundle_id = "com.livescore.tv"
 
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true

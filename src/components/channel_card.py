@@ -28,8 +28,14 @@ def build_channel_card(
     page_obj: ft.Page,
     idx: int = 0,
     surface_variant: str | None = None,
+    status_dot: ft.Container | None = None,
 ) -> ft.Container:
     quality = channel.quality or "HD"
+
+    badge_row_controls = [_quality_badge(quality)]
+    if status_dot:
+        badge_row_controls.append(status_dot)
+    badge_row_controls.append(ft.Text("Stream", size=11, color=ft.Colors.ON_SURFACE_VARIANT))
 
     card = ft.Container(
         content=ft.Row(
@@ -45,10 +51,7 @@ def build_channel_card(
                     controls=[
                         ft.Text(channel.name, size=14, weight=ft.FontWeight.W_600, color=ft.Colors.ON_SURFACE),
                         ft.Row(
-                            [
-                                _quality_badge(quality),
-                                ft.Text("Stream", size=11, color=ft.Colors.ON_SURFACE_VARIANT),
-                            ],
+                            controls=badge_row_controls,
                             spacing=6,
                         ),
                     ],
@@ -66,7 +69,7 @@ def build_channel_card(
         animate_scale=300,
         animate=ft.Animation(300, ft.AnimationCurve.EASE_OUT),
         ink=True,
-        on_click=lambda _: on_click(channel),
+        on_click=lambda _: page_obj.run_task(on_click, channel),
         tooltip=f"Play {channel.name}",
     )
     card.tab_index = idx + 10

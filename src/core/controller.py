@@ -2,9 +2,9 @@ import asyncio
 import base64
 import logging
 import urllib.parse
-from datetime import datetime, timezone
 
 import flet as ft
+import httpx
 
 from components.ktv_dialog import show_ktv_install_dialog
 from core.config import KTV_DEEP_LINK_SCHEME, SPLASH_DURATION_SEC, USE_EXTERNAL_PLAYER
@@ -42,6 +42,8 @@ def _dict_to_match(d: dict | Match) -> Match:
         home_score=str(d.get("home_score", "")),
         away_score=str(d.get("away_score", "")),
         poster=d.get("poster", ""),
+        home_logo=d.get("home_logo", ""),
+        away_logo=d.get("away_logo", ""),
     )
 
 
@@ -105,9 +107,7 @@ class AppController:
         self.page.padding = 0
         self.page.spacing = 0
 
-        self.page.fonts = {
-            "Outfit": "assets/outfit.css"
-        }
+        self.page.fonts = {"Outfit": "assets/outfit.css"}
         self.page.theme = AppTheme.get_light_theme()
         self.page.dark_theme = AppTheme.get_dark_theme()
         self.page.theme.font_family = "Outfit"
@@ -121,9 +121,12 @@ class AppController:
         logger.info("AppController initialized")
 
     async def cleanup(self):
-        await self.livescore.close()
-        await self.scraper.close()
-        await self.cache.close()
+        if self.livescore:
+            await self.livescore.close()
+        if self.scraper:
+            await self.scraper.close()
+        if self.cache:
+            await self.cache.close()
         logger.info("AppController cleaned up")
 
     def _show_error_snackbar(self):
@@ -162,47 +165,57 @@ class AppController:
         async with lock:
             await self._rate_limiter.wait_if_needed()
 
-            cache_key = f"matches_{datetime.now(timezone.utc).strftime('%Y%m%d')}"
-            cached = await self.cache.get_json(cache_key)
-            if cached:
-                state.matches_by_league = _restore_matches(cached)
-                state.error_message = None
-                state.is_loading = False
-                self._update_matches_list()
-                logger.info("Loaded %d leagues from cache", len(cached))
-                return
+            date_clean = state.selected_date.replace("-", "")
+            cache_key = f"matches_{date_clean}"
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached:
+                    state.matches_by_league = _restore_matches(cached)
+                    state.error_message = None
+                    state.is_loading = False
+                    self._update_matches_list()
+                    logger.info("Loaded %d leagues from cache for %s", len(cached), state.selected_date)
+                    return
+            except Exception as e:
+                logger.error("Error reading cache for matches: %s", e)
 
             state.is_loading = True
             state.error_message = None
             self._update_matches_list()
 
             try:
-                matches = await self.livescore.get_today_matches()
-            except NetworkError:
-                state.error_message = "No internet connection. Please check your network and try again."
+                matches = await self.livescore.get_matches_by_date(state.selected_date)
+                by_league = {}
+                for m in matches:
+                    if m.league not in by_league:
+                        by_league[m.league] = []
+                    by_league[m.league].append(m)
+
+                state.matches_by_league = [
+                    {"league": league, "matches": matches_list} for league, matches_list in by_league.items()
+                ]
+
+                try:
+                    await self.cache.set_json(cache_key, state.matches_by_league, ttl=CACHE_TTL_MATCHES)
+                except Exception as e:
+                    logger.error("Error setting cache for matches: %s", e)
+
+                if not state.matches_by_league:
+                    state.error_message = f"No matches scheduled for {state.selected_date}"
+                else:
+                    state.error_message = None
+
+                logger.info("Loaded %d matches (%d leagues) for %s", len(matches), len(by_league), state.selected_date)
+            except NetworkError as e:
+                state.error_message = str(e)
+                state.matches_by_league = []
+            except Exception as e:
+                logger.exception("Unexpected error in load_matches")
+                state.error_message = f"An unexpected error occurred: {e}"
+                state.matches_by_league = []
+            finally:
                 state.is_loading = False
                 self._update_matches_list()
-                return
-
-            by_league = {}
-            for m in matches:
-                if m.league not in by_league:
-                    by_league[m.league] = []
-                by_league[m.league].append(m)
-
-            state.matches_by_league = [
-                {"league": league, "matches": matches_list}
-                for league, matches_list in by_league.items()
-            ]
-
-            await self.cache.set_json(cache_key, state.matches_by_league, ttl=CACHE_TTL_MATCHES)
-
-            if not state.matches_by_league:
-                state.error_message = "No matches scheduled for today"
-
-            state.is_loading = False
-            self._update_matches_list()
-            logger.info("Loaded %d matches (%d leagues)", len(matches), len(by_league))
 
     async def load_search(self, query: str):
         lock = self._get_lock("search")
@@ -215,40 +228,47 @@ class AppController:
             self._refresh_search_results()
 
             cache_key = f"search_{query.lower()}"
-            cached = await self.cache.get_json(cache_key)
-            if cached:
-                state.search_results = [
-                    _dict_to_match(m) if not isinstance(m, Match) else m
-                    for m in cached
-                ]
-                state.search_has_more = False
-                state.is_loading = False
-                self._refresh_search_results()
-                return
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached:
+                    state.search_results = [_dict_to_match(m) if not isinstance(m, Match) else m for m in cached]
+                    state.search_has_more = False
+                    state.is_loading = False
+                    self._refresh_search_results()
+                    return
+            except Exception as e:
+                logger.error("Error reading cache for search: %s", e)
 
             try:
                 matches = await self.livescore.get_today_matches()
-            except NetworkError:
-                state.error_message = "No internet connection"
+                query_lower = query.lower()
+                results = [
+                    m
+                    for m in matches
+                    if query_lower in m.home_team.lower()
+                    or query_lower in m.away_team.lower()
+                    or query_lower in m.league.lower()
+                ]
+
+                state.search_results = results
+                state.search_has_more = False
+
+                try:
+                    await self.cache.set_json(cache_key, results, ttl=CACHE_TTL_SEARCH)
+                except Exception as e:
+                    logger.error("Error setting cache for search: %s", e)
+
+                logger.info("Search '%s' returned %d results", query, len(results))
+            except NetworkError as e:
+                state.error_message = str(e)
                 state.search_results = []
+            except Exception as e:
+                logger.exception("Unexpected error in load_search")
+                state.error_message = f"Search failed: {e}"
+                state.search_results = []
+            finally:
                 state.is_loading = False
                 self._refresh_search_results()
-                return
-
-            query_lower = query.lower()
-            results = [
-                m for m in matches
-                if query_lower in m.home_team.lower()
-                or query_lower in m.away_team.lower()
-                or query_lower in m.league.lower()
-            ]
-
-            state.search_results = results
-            state.search_has_more = False
-            await self.cache.set_json(cache_key, results, ttl=CACHE_TTL_SEARCH)
-            state.is_loading = False
-            self._refresh_search_results()
-            logger.info("Search '%s' returned %d results", query, len(results))
 
     async def load_streams(self, match: Match):
         lock = self._get_lock(f"streams_{match.id}")
@@ -262,27 +282,46 @@ class AppController:
             self._update_channels_list()
 
             cache_key = f"streams_{match.id}"
-            cached = await self.cache.get_json(cache_key)
-            if cached:
-                state.match_channels = _restore_channels(cached)
+            try:
+                cached = await self.cache.get_json(cache_key)
+                if cached:
+                    state.match_channels = _restore_channels(cached)
+                    state.is_loading = False
+                    self._update_channels_list()
+                    logger.info("Loaded %d streams from cache for match %s", len(cached), match.id)
+                    return
+            except Exception as e:
+                logger.error("Error reading cache for streams: %s", e)
+
+            try:
+                match_url = await self.scraper.find_match_page_by_id(match.id)
+                if not match_url:
+                    match_url = await self.scraper.find_match_page(match.home_team, match.away_team)
+
+                channels: list[StreamChannel] = []
+                if match_url:
+                    channels = await self.scraper.get_streams_from_match_page(match_url)
+
+                if not channels:
+                    channels = self.scraper._get_fallback_channels()
+
+                state.match_channels = channels
+                try:
+                    await self.cache.set_json(cache_key, channels, ttl=CACHE_TTL_STREAMS)
+                except Exception as e:
+                    logger.error("Error setting cache for streams: %s", e)
+
+                logger.info("Loaded %d streams for match %s", len(channels), match.id)
+            except Exception:
+                logger.exception("Unexpected error loading streams")
+                try:
+                    state.match_channels = self.scraper._get_fallback_channels()
+                except Exception:
+                    state.match_channels = []
+                state.error_message = None
+            finally:
                 state.is_loading = False
                 self._update_channels_list()
-                logger.info("Loaded %d streams from cache for match %s", len(cached), match.id)
-                return
-
-            match_url = await self.scraper.find_match_page_by_id(match.id)
-            if not match_url:
-                match_url = await self.scraper.find_match_page(match.home_team, match.away_team)
-
-            channels: list[StreamChannel] = []
-            if match_url:
-                channels = await self.scraper.get_streams_from_match_page(match_url)
-
-            state.match_channels = channels
-            await self.cache.set_json(cache_key, channels, ttl=CACHE_TTL_STREAMS)
-            state.is_loading = False
-            self._update_channels_list()
-            logger.info("Loaded %d streams for match %s", len(channels), match.id)
 
     async def play_stream(self, channel: StreamChannel):
         if USE_EXTERNAL_PLAYER:
@@ -422,3 +461,44 @@ class AppController:
             self.page.update_channels_list()
         else:
             self.page.update()
+
+    async def check_channel_liveliness(self, channel: StreamChannel, indicator: ft.Container):
+        is_live = False
+        try:
+            resolved_url = await self.scraper.resolve_stream_url(channel.url)
+            if not resolved_url:
+                resolved_url = channel.url
+
+            async with httpx.AsyncClient(
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+                },
+                timeout=5.0,
+                follow_redirects=True,
+            ) as client:
+                try:
+                    resp = await client.head(resolved_url)
+                    if resp.status_code in (200, 206):
+                        is_live = True
+                except Exception:
+                    pass
+
+                if not is_live:
+                    try:
+                        resp = await client.get(resolved_url, headers={"Range": "bytes=0-1023"})
+                        if resp.status_code in (200, 206):
+                            is_live = True
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.warning("Error checking channel liveliness for %s: %s", channel.name, e)
+
+        if is_live:
+            indicator.bgcolor = AppColors.SUCCESS
+        else:
+            indicator.bgcolor = AppColors.ERROR
+
+        try:
+            indicator.update()
+        except Exception:
+            pass

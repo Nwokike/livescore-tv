@@ -2,8 +2,8 @@ import flet as ft
 
 from components.loading_state import build_empty_state, build_loading_centered
 from components.match_card import build_match_card
-from core.constants import APP_NAME, LBL_NO_MATCHES_TODAY
-from core.focus_manager import make_focusable_button
+from core.constants import APP_NAME
+from core.focus_manager import make_focusable_button, make_focusable_tile
 from core.state import state
 from core.theme import AppColors
 
@@ -19,18 +19,26 @@ def build_home_view(
     surface_variant = AppColors.get_surface_variant(page_obj)
 
     def update_list():
-        leagues_column.controls.clear()
+        # Re-build date tabs controls to update selected highlight
+        dates_row.controls = [build_date_tab(d, i) for i, d in enumerate(date_list)]
 
         if state.is_loading and not state.matches_by_league:
-            leagues_column.controls.append(build_loading_centered("Loading matches..."))
+            scroll_content.controls = [
+                header,
+                dates_container,
+                build_loading_centered("Loading matches..."),
+            ]
         elif state.error_message and not state.matches_by_league:
-            leagues_column.controls.append(
+            scroll_content.controls = [
+                header,
+                dates_container,
                 build_empty_state(
                     state.error_message,
                     icon=ft.Icons.WIFI_OFF_ROUNDED,
-                )
-            )
+                ),
+            ]
         elif state.matches_by_league:
+            leagues_column.controls.clear()
             live_groups = []
             other_groups = []
 
@@ -57,15 +65,16 @@ def build_home_view(
 
                 tile_controls = []
                 for i, match in enumerate(league_matches):
-                    tile_controls.append(
-                        build_match_card(match, on_select_match, page_obj, i, surface_variant)
-                    )
+                    tile_controls.append(build_match_card(match, on_select_match, page_obj, i, surface_variant))
 
                 live_indicator = ft.Container(
                     content=ft.Row(
                         [
                             ft.Container(
-                                width=8, height=8, border_radius=4, bgcolor=AppColors.LIVE,
+                                width=8,
+                                height=8,
+                                border_radius=4,
+                                bgcolor=AppColors.LIVE,
                                 animate_scale=500,
                             ),
                             ft.Text("LIVE", size=10, weight=ft.FontWeight.BOLD, color=AppColors.LIVE),
@@ -85,11 +94,13 @@ def build_home_view(
                                 size=14,
                             ),
                             ft.Container(expand=True),
-                            ft.Text(
-                                str(len(league_matches)),
-                                size=12,
-                                weight=ft.FontWeight.W_500,
-                                color=ft.Colors.ON_SURFACE_VARIANT,
+                            ft.Container(
+                                content=ft.Text(
+                                    str(len(league_matches)),
+                                    size=12,
+                                    weight=ft.FontWeight.W_500,
+                                    color=ft.Colors.ON_SURFACE_VARIANT,
+                                ),
                                 bgcolor=ft.Colors.with_opacity(0.08, ft.Colors.ON_SURFACE),
                                 padding=ft.Padding(8, 2, 8, 2),
                                 border_radius=10,
@@ -102,13 +113,31 @@ def build_home_view(
                     collapsed_bgcolor=ft.Colors.TRANSPARENT,
                     bgcolor=ft.Colors.with_opacity(0.02, ft.Colors.ON_SURFACE),
                     controls=tile_controls,
-                    shape=ft.BorderRadius(12, 12, 12, 12),
                 )
 
-                leagues_column.controls.append(exp_tile)
-        else:
-            leagues_column.controls.append(build_empty_state(LBL_NO_MATCHES_TODAY))
+                tile_wrapper = ft.Container(
+                    content=exp_tile,
+                    border_radius=12,
+                    ink=True,
+                    on_click=lambda e, t=exp_tile: setattr(t, "expanded", not t.expanded) or t.update(),
+                )
+                tile_wrapper.tab_index = 0
+                make_focusable_tile(tile_wrapper, exp_tile)
 
+                leagues_column.controls.append(tile_wrapper)
+
+            scroll_content.controls = [header, dates_container, leagues_column]
+        else:
+            scroll_content.controls = [
+                header,
+                dates_container,
+                build_empty_state(f"No matches scheduled for {state.selected_date}"),
+            ]
+
+        try:
+            dates_row.update()
+        except Exception:
+            pass
         page_obj.update()
 
     def handle_theme_toggle(e):
@@ -124,25 +153,12 @@ def build_home_view(
 
     def handle_refresh(e):
         refresh_btn.disabled = True
-        refresh_btn.content = ft.ProgressRing(
-            color=ft.Colors.ON_SURFACE, stroke_width=2, width=18, height=18
-        )
+        refresh_btn.content = ft.ProgressRing(color=ft.Colors.ON_SURFACE, stroke_width=2, width=18, height=18)
         page_obj.update()
         state.matches_by_league = []
         state.is_loading = True
         update_list()
         page_obj.run_task(controller.load_matches)
-
-    search_btn = ft.Container(
-        content=ft.Icon(ft.Icons.SEARCH_ROUNDED, color=ft.Colors.ON_SURFACE),
-        padding=10,
-        border_radius=10,
-        ink=True,
-        on_click=lambda _: on_search_click(),
-        tooltip="Search",
-    )
-    search_btn.tab_index = 1
-    make_focusable_button(search_btn)
 
     theme_btn = ft.Container(
         content=ft.Icon(
@@ -181,16 +197,103 @@ def build_home_view(
                     spacing=10,
                 ),
                 ft.Row(
-                    controls=[refresh_btn, search_btn, theme_btn],
+                    controls=[refresh_btn, theme_btn],
                     spacing=2,
-                )
+                ),
             ],
             alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+        ),
+    )
+
+    import datetime
+
+    today_dt = datetime.date.today()
+    date_list = [today_dt + datetime.timedelta(days=i) for i in range(-3, 4)]
+
+    def on_date_selected(dt_str: str):
+        state.selected_date = dt_str
+        state.matches_by_league = []
+        state.is_loading = True
+        update_list()
+        page_obj.run_task(controller.load_matches)
+
+    def build_date_tab(d: datetime.date, idx: int):
+        d_str = d.strftime("%Y-%m-%d")
+        is_selected = state.selected_date == d_str
+
+        diff = (d - today_dt).days
+        day_label = (
+            "TODAY"
+            if diff == 0
+            else ("YESTERDAY" if diff == -1 else ("TOMORROW" if diff == 1 else d.strftime("%a").upper()))
         )
+        date_label = d.strftime("%d %b")
+
+        day_text = ft.Text(day_label, size=9, weight=ft.FontWeight.W_500, text_align=ft.TextAlign.CENTER)
+        date_text = ft.Text(date_label, size=11, weight=ft.FontWeight.BOLD, text_align=ft.TextAlign.CENTER)
+
+        if is_selected:
+            day_text.color = ft.Colors.WHITE
+            date_text.color = ft.Colors.WHITE
+            bgcolor = AppColors.PRIMARY
+            border = None
+        else:
+            day_text.color = ft.Colors.ON_SURFACE_VARIANT
+            date_text.color = ft.Colors.ON_SURFACE
+            bgcolor = ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+            border = ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+
+        container = ft.Container(
+            content=ft.Column(
+                [day_text, date_text],
+                spacing=1,
+                alignment=ft.MainAxisAlignment.CENTER,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            width=90,
+            height=46,
+            bgcolor=bgcolor,
+            border=border,
+            border_radius=10,
+            alignment=ft.Alignment.CENTER,
+            animate=200,
+            ink=True,
+            on_click=lambda _, dt_str=d_str: on_date_selected(dt_str),
+        )
+
+        def on_focus_change(e):
+            focused = e.data == "true"
+            if focused:
+                e.control.scale = 1.05
+                if not (state.selected_date == d_str):
+                    e.control.border = ft.Border.all(2, AppColors.PRIMARY)
+                    e.control.bgcolor = ft.Colors.with_opacity(0.12, AppColors.PRIMARY)
+            else:
+                e.control.scale = 1.0
+                if not (state.selected_date == d_str):
+                    e.control.border = ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
+                    e.control.bgcolor = ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
+            e.control.update()
+
+        container.on_focus = on_focus_change
+        container.tab_index = idx + 10
+        return container
+
+    dates_row = ft.Row(
+        controls=[build_date_tab(d, i) for i, d in enumerate(date_list)],
+        spacing=8,
+        alignment=ft.MainAxisAlignment.CENTER,
+        scroll=ft.ScrollMode.AUTO,
+    )
+
+    dates_container = ft.Container(
+        content=dates_row,
+        padding=ft.Padding.only(left=20, right=20, top=4, bottom=8),
+        alignment=ft.Alignment.CENTER,
     )
 
     scroll_content = ft.Column(
-        controls=[header, leagues_column],
+        controls=[header, dates_container],
         expand=False,
         spacing=0,
     )

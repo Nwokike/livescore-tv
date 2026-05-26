@@ -15,7 +15,7 @@ def build_loading_indicator(size: int = 40, stroke_width: int = 4) -> ft.Progres
 
 def build_loading_centered(message: str = LBL_LOADING) -> ft.Container:
     return ft.Container(
-        expand=True,
+        height=200,
         alignment=ft.Alignment.CENTER,
         content=ft.Column(
             [
@@ -24,12 +24,14 @@ def build_loading_centered(message: str = LBL_LOADING) -> ft.Container:
                 ft.Text(message, color=ft.Colors.ON_SURFACE_VARIANT, size=14),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
         ),
     )
 
 
 def build_empty_state(message: str, icon: ft.Icons = ft.Icons.INFO_OUTLINE_ROUNDED, size: int = 16) -> ft.Container:
     return ft.Container(
+        height=200,
         alignment=ft.Alignment.CENTER,
         content=ft.Column(
             [
@@ -38,8 +40,8 @@ def build_empty_state(message: str, icon: ft.Icons = ft.Icons.INFO_OUTLINE_ROUND
                 ft.Text(message, color=ft.Colors.ON_SURFACE_VARIANT, size=size, text_align=ft.TextAlign.CENTER),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
         ),
-        padding=40,
     )
 
 
@@ -61,10 +63,11 @@ def build_error_state(message: str, on_retry=None) -> ft.Container:
             )
         )
     return ft.Container(
+        height=200,
         alignment=ft.Alignment.CENTER,
         content=ft.Column(
             controls,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
         ),
-        padding=40,
     )

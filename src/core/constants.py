@@ -1,4 +1,4 @@
-APP_NAME = "Score808 TV"
+APP_NAME = "Livescore TV"
 APP_VERSION = "1.0.0"
 APP_TAGLINE = "Live football. No server needed."
 

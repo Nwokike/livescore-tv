@@ -39,13 +39,11 @@ class AppColors:
         try:
             return page.platform_brightness == ft.Brightness.DARK
         except Exception:
-            return True
+            return False
 
     @staticmethod
     def get_glass_bg(page: ft.Page):
-        return ft.Colors.with_opacity(
-            0.06, ft.Colors.WHITE if AppColors._is_dark(page) else ft.Colors.BLACK
-        )
+        return ft.Colors.with_opacity(0.06, ft.Colors.WHITE if AppColors._is_dark(page) else ft.Colors.BLACK)
 
     @staticmethod
     def get_surface_variant(page: ft.Page):
@@ -57,7 +55,7 @@ class AppColors:
             is_dark = page.platform_brightness == ft.Brightness.DARK
             return AppColors.DARK_SURFACE_VARIANT if is_dark else AppColors.LIGHT_SURFACE_VARIANT
         except Exception:
-            return AppColors.DARK_SURFACE_VARIANT
+            return AppColors.LIGHT_SURFACE_VARIANT
 
 
 class AppTheme:
@@ -99,7 +97,7 @@ class AppTheme:
 
     @staticmethod
     def theme_button_style(is_primary: bool = False):
-        return ft.ButtonStyles(
+        return ft.ButtonStyle(
             bgcolor={
                 ft.ControlState.FOCUSED: AppColors.PRIMARY,
                 ft.ControlState.DEFAULT: AppColors.PRIMARY if is_primary else ft.Colors.SURFACE,

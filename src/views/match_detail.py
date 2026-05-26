@@ -18,12 +18,16 @@ def _status_badge(status: str, time: str) -> ft.Container:
             content=ft.Row(
                 [
                     ft.Container(
-                        width=8, height=8, border_radius=4, bgcolor=ft.Colors.WHITE,
+                        width=8,
+                        height=8,
+                        border_radius=4,
+                        bgcolor=ft.Colors.WHITE,
                         animate_scale=500,
                     ),
                     ft.Text(label, size=12, weight=ft.FontWeight.BOLD, color=ft.Colors.WHITE),
                 ],
                 spacing=6,
+                tight=True,
             ),
             padding=ft.Padding(14, 7, 14, 7),
             bgcolor=color,
@@ -50,19 +54,38 @@ def build_match_detail_view(
     channels_list = ft.Column(spacing=10)
 
     def update_channels():
-        channels_list.controls.clear()
-
         if state.is_loading:
-            channels_list.controls.append(build_loading_centered("Loading streams..."))
+            scroll_content.controls = [
+                header,
+                channels_header,
+                build_loading_centered("Loading streams..."),
+            ]
         elif state.error_message:
-            channels_list.controls.append(build_empty_state(state.error_message, icon=ft.Icons.ERROR_OUTLINE_ROUNDED))
+            scroll_content.controls = [
+                header,
+                channels_header,
+                build_empty_state(state.error_message, icon=ft.Icons.ERROR_OUTLINE_ROUNDED),
+            ]
         elif state.match_channels:
+            channels_list.controls.clear()
             for i, ch in enumerate(state.match_channels):
-                channels_list.controls.append(
-                    build_channel_card(ch, controller.play_stream, page_obj, i, surface_variant)
+                status_dot = ft.Container(
+                    width=8,
+                    height=8,
+                    border_radius=4,
+                    bgcolor="#6B7280",
                 )
+                channels_list.controls.append(
+                    build_channel_card(ch, controller.play_stream, page_obj, i, surface_variant, status_dot)
+                )
+                page_obj.run_task(controller.check_channel_liveliness, ch, status_dot)
+            scroll_content.controls = [header, channels_header, channels_list]
         else:
-            channels_list.controls.append(build_empty_state(LBL_NO_STREAMS, icon=ft.Icons.STREAM_ROUNDED))
+            scroll_content.controls = [
+                header,
+                channels_header,
+                build_empty_state(LBL_NO_STREAMS, icon=ft.Icons.STREAM_ROUNDED),
+            ]
 
         page_obj.update()
 
@@ -83,28 +106,92 @@ def build_match_detail_view(
     elif match.status == "FT":
         score_text = f"{match.home_score} - {match.away_score}"
 
+    home_logo_control = (
+        ft.Image(src=match.home_logo, width=64, height=64, fit="contain")
+        if match.home_logo
+        else ft.Icon(ft.Icons.SHIELD_ROUNDED, size=64, color=ft.Colors.ON_SURFACE_VARIANT)
+    )
+    away_logo_control = (
+        ft.Image(src=match.away_logo, width=64, height=64, fit="contain")
+        if match.away_logo
+        else ft.Icon(ft.Icons.SHIELD_ROUNDED, size=64, color=ft.Colors.ON_SURFACE_VARIANT)
+    )
+
+    dashboard_row = ft.Row(
+        controls=[
+            # Home Team Column
+            ft.Column(
+                controls=[
+                    home_logo_control,
+                    ft.Container(height=8),
+                    ft.Text(
+                        match.home_team,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ON_SURFACE,
+                        text_align=ft.TextAlign.CENTER,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
+                expand=True,
+            ),
+            # Score Column
+            ft.Column(
+                controls=[
+                    _status_badge(match.status, match.time),
+                    ft.Container(height=12),
+                    ft.Text(
+                        score_text if score_text else "vs",
+                        size=32,
+                        weight=ft.FontWeight.W_800,
+                        color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
+                width=120,
+            ),
+            # Away Team Column
+            ft.Column(
+                controls=[
+                    away_logo_control,
+                    ft.Container(height=8),
+                    ft.Text(
+                        match.away_team,
+                        size=16,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.ON_SURFACE,
+                        text_align=ft.TextAlign.CENTER,
+                        max_lines=2,
+                        overflow=ft.TextOverflow.ELLIPSIS,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                alignment=ft.MainAxisAlignment.CENTER,
+                expand=True,
+            ),
+        ],
+        alignment=ft.MainAxisAlignment.CENTER,
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+
     header = ft.Container(
         padding=ft.Padding.only(left=20, right=20, top=20, bottom=24),
         content=ft.Column(
             controls=[
                 ft.Row(controls=[back_btn]),
                 ft.Container(height=20),
-                ft.Container(
-                    alignment=ft.Alignment.CENTER,
-                    content=_status_badge(match.status, match.time),
-                ),
-                ft.Container(height=20),
-                ft.Text(match.home_team, size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=4),
-                ft.Text(score_text if score_text else "vs", size=32, weight=ft.FontWeight.BOLD, color=AppColors.PRIMARY if is_live else ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=4),
-                ft.Text(match.away_team, size=24, weight=ft.FontWeight.BOLD, color=ft.Colors.ON_SURFACE, text_align=ft.TextAlign.CENTER),
-                ft.Container(height=12),
+                dashboard_row,
+                ft.Container(height=16),
                 ft.Text(match.league, size=13, color=ft.Colors.ON_SURFACE_VARIANT, text_align=ft.TextAlign.CENTER),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             spacing=0,
-        )
+        ),
     )
 
     channels_header = ft.Container(
@@ -129,7 +216,7 @@ def build_match_detail_view(
     )
 
     scroll_content = ft.Column(
-        controls=[header, channels_header, channels_list],
+        controls=[header, channels_header],
         expand=False,
         spacing=0,
     )
@@ -143,6 +230,9 @@ def build_match_detail_view(
     )
 
     state.on_channels_loaded = update_channels
+    page_obj.update_channels_list = update_channels
+
+    update_channels()
 
     return ft.View(
         route="/match",
