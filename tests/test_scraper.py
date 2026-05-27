@@ -104,6 +104,79 @@ class TestScore808Scraper(unittest.IsolatedAsyncioTestCase):
         resolved = await self.scraper.resolve_stream_url("https://score808.tv/stream/1.html")
         self.assertEqual(resolved, "https://livecdn.com/live/master.m3u8?token=123")
 
+    def test_parse_matches_from_nuxt(self):
+        html = """
+        <html>
+            <body>
+                <script>
+                    window.__NUXT__ = {
+                        data: [
+                            {
+                                matchId: 12345,
+                                homeName: "Arsenal",
+                                awayName: "Chelsea",
+                                state: 1
+                            },
+                            {
+                                matchId: 67890,
+                                homeName: "Man Utd",
+                                awayName: "Liverpool",
+                                state: 0
+                            }
+                        ]
+                    };
+                </script>
+            </body>
+        </html>
+        """
+        matches = self.scraper._parse_matches_from_nuxt(html)
+        self.assertEqual(len(matches), 2)
+        self.assertEqual(matches[0]["id"], "12345")
+        self.assertEqual(matches[0]["home"], "Arsenal")
+        self.assertEqual(matches[0]["away"], "Chelsea")
+        self.assertEqual(matches[1]["id"], "67890")
+
+    @patch("services.score808.Score808Scraper._get_with_retry")
+    async def test_find_match_page(self, mock_retry):
+        mock_response = MagicMock()
+        mock_response.text = """
+        <script>
+            window.__NUXT__ = { matchId: 999, homeName: "Real Madrid", awayName: "Barcelona" };
+        </script>
+        """
+        mock_retry.return_value = mock_response
+
+        # Test exact match
+        url = await self.scraper.find_match_page("Real Madrid", "Barcelona")
+        self.assertEqual(url, "score808://match/999")
+
+        # Test relaxed/substring match
+        url = await self.scraper.find_match_page("Madrid", "Barca")
+        self.assertEqual(url, "score808://match/999")
+
+        # Test no match
+        url = await self.scraper.find_match_page("Arsenal", "Chelsea")
+        self.assertIsNone(url)
+
+    @patch("services.score808.Score808Scraper._get_with_retry")
+    async def test_get_streams_from_match_page_api(self, mock_retry):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "channels": [{"id": "4001", "label": "Stream 1 HD"}, {"id": "4002", "label": "Stream 2 1080p"}]
+        }
+        mock_retry.return_value = mock_response
+
+        channels = await self.scraper.get_streams_from_match_page("score808://match/999")
+        # 2 channels * 3 CDN servers = 6 stream channels total
+        self.assertEqual(len(channels), 6)
+        self.assertEqual(channels[0].name, "Stream 1 HD (CDN Backup 1)")
+        self.assertEqual(channels[0].url, "https://saten1-m2bpb.forbbpplay.cyou/live/4001.m3u8")
+        self.assertEqual(channels[0].quality, "720p")
+
+        self.assertEqual(channels[5].name, "Stream 2 1080p (CDN Backup 3)")
+        self.assertEqual(channels[5].url, "https://saten3-m2bpb.forbbpplay.cyou/live/4002.m3u8")
+        self.assertEqual(channels[5].quality, "1080p")
+
 
 if __name__ == "__main__":
     unittest.main()

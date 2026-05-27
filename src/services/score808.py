@@ -1,5 +1,6 @@
 import logging
 import re
+from urllib.parse import urlparse
 
 import httpx
 from bs4 import BeautifulSoup
@@ -43,11 +44,21 @@ class Score808Scraper:
             self._client = None
             logger.info("Scraper session closed")
 
-    async def _get_with_retry(self, url: str, max_retries: int = HTTP_MAX_RETRIES) -> httpx.Response | None:
+    async def _get_with_retry(
+        self,
+        url: str,
+        max_retries: int = HTTP_MAX_RETRIES,
+        params: dict | None = None,
+        headers: dict | None = None,
+    ) -> httpx.Response | None:
         client = self._get_client()
+        req_headers = dict(client.headers)
+        if headers:
+            req_headers.update(headers)
+
         for attempt in range(max_retries):
             try:
-                resp = await client.get(url)
+                resp = await client.get(url, params=params, headers=req_headers)
                 if resp.status_code in (502, 503, 504) and attempt < max_retries - 1:
                     wait = 2**attempt
                     logger.warning("HTTP %d, retry %d/%d in %ds", resp.status_code, attempt + 1, max_retries, wait)
@@ -55,7 +66,8 @@ class Score808Scraper:
                     continue
                 resp.raise_for_status()
                 if resp.status_code == 200 and resp.url:
-                    self.base_url = f"{resp.url.scheme}://{resp.url.host}"
+                    if "cfapi" not in str(resp.url):
+                        self.base_url = f"{resp.url.scheme}://{resp.url.host}"
                 return resp
             except httpx.HTTPStatusError as e:
                 if e.response.status_code in (502, 503, 504) and attempt < max_retries - 1:
@@ -80,67 +92,197 @@ class Score808Scraper:
                 return None
         return None
 
+    def _parse_matches_from_nuxt(self, html: str) -> list[dict]:
+        match = re.search(r"window\.__NUXT__\s*=\s*(.*?);?\s*</script>", html, re.DOTALL)
+        if not match:
+            soup = BeautifulSoup(html, "lxml")
+            nuxt_script = None
+            for s in soup.find_all("script"):
+                if s.string and "window.__NUXT__" in s.string:
+                    nuxt_script = s.string
+                    break
+        else:
+            nuxt_script = match.group(0)
+
+        if not nuxt_script:
+            logger.warning("No window.__NUXT__ script found in HTML")
+            return []
+
+        matches = []
+        pos = 0
+        while True:
+            pos = nuxt_script.find("matchId:", pos)
+            if pos == -1:
+                break
+
+            id_match = re.match(r"matchId:\s*(\d+)", nuxt_script[pos:])
+            if not id_match:
+                pos += 8
+                continue
+
+            m_id = id_match.group(1)
+            window = nuxt_script[pos : pos + 600]
+
+            home_match = re.search(r"homeName:\s*(?:\"([^\"]+)\"|'([^']+)')", window)
+            away_match = re.search(r"awayName:\s*(?:\"([^\"]+)\"|'([^']+)')", window)
+            state_match = re.search(r"state:\s*(-?\d+|[a-zA-Z])", window)
+
+            if home_match and away_match:
+                h_name = home_match.group(1) or home_match.group(2)
+                a_name = away_match.group(1) or away_match.group(2)
+                m_state = state_match.group(1) if state_match else "unknown"
+
+                try:
+                    h_name = h_name.encode().decode("unicode-escape")
+                except Exception:
+                    pass
+                try:
+                    a_name = a_name.encode().decode("unicode-escape")
+                except Exception:
+                    pass
+
+                matches.append({"id": m_id, "home": h_name, "away": a_name, "state": m_state})
+            pos += 8
+
+        seen = set()
+        dedup = []
+        for m in matches:
+            if m["id"] not in seen:
+                seen.add(m["id"])
+                dedup.append(m)
+        return dedup
+
     async def find_match_page(self, home_team: str, away_team: str) -> str | None:
         try:
             resp = await self._get_with_retry(SCORE808_BASE_URL)
             if not resp:
                 return None
-            soup = BeautifulSoup(resp.text, "lxml")
 
-            for link in soup.find_all("a", href=True):
-                href = link.get("href", "")
-                text = link.get_text().lower()
-                if home_team.lower() in text or away_team.lower() in text:
-                    full_url = f"{SCORE808_BASE_URL}{href}" if href.startswith("/") else href
-                    logger.info("Found match page: %s", full_url)
-                    return full_url
+            matches = self._parse_matches_from_nuxt(resp.text)
+            logger.info("Found %d matches in Nuxt state", len(matches))
+
+            home_lower = home_team.lower()
+            away_lower = away_team.lower()
+
+            # Attempt 1: Check if both home_team matches h_name and away_team matches a_name (case-insensitive substring)
+            for m in matches:
+                h_name_lower = m["home"].lower()
+                a_name_lower = m["away"].lower()
+                if (home_lower in h_name_lower and away_lower in a_name_lower) or (
+                    away_lower in h_name_lower and home_lower in a_name_lower
+                ):
+                    logger.info("Matched match (both teams): %s vs %s (ID: %s)", m["home"], m["away"], m["id"])
+                    return f"score808://match/{m['id']}"
+
+            # Attempt 2: Relaxed match - if either home_team or away_team matches (case-insensitive substring)
+            for m in matches:
+                h_name_lower = m["home"].lower()
+                a_name_lower = m["away"].lower()
+                if (
+                    home_lower in h_name_lower
+                    or away_lower in a_name_lower
+                    or home_lower in a_name_lower
+                    or away_lower in h_name_lower
+                ):
+                    logger.info("Matched match (relaxed): %s vs %s (ID: %s)", m["home"], m["away"], m["id"])
+                    return f"score808://match/{m['id']}"
         except Exception:
             logger.exception("Unexpected error in find_match_page")
         return None
 
     async def find_match_page_by_id(self, match_id: str) -> str | None:
-        url = f"{SCORE808_BASE_URL}/football/{match_id}"
         try:
-            resp = await self._get_with_retry(url)
-            if resp and resp.status_code == 200:
-                soup = BeautifulSoup(resp.text, "lxml")
-                if soup.find("div", class_="match") or soup.find("div", class_="stream"):
-                    logger.info("Found match page by ID: %s", url)
-                    return url
+            resp = await self._get_with_retry(SCORE808_BASE_URL)
+            if not resp:
+                return f"score808://match/{match_id}"
+
+            matches = self._parse_matches_from_nuxt(resp.text)
+            for m in matches:
+                if m["id"] == str(match_id):
+                    logger.info("Found match page by ID in Nuxt: %s", match_id)
+                    return f"score808://match/{match_id}"
+
+            logger.info("Match ID %s not found on homepage Nuxt state, returning pseudo-URL as fallback", match_id)
+            return f"score808://match/{match_id}"
         except Exception:
             logger.exception("Unexpected error in find_match_page_by_id")
-        return None
+        return f"score808://match/{match_id}"
 
     async def get_streams_from_match_page(self, url: str) -> list[StreamChannel]:
-        channels = []
-        try:
-            resp = await self._get_with_retry(url)
-            if not resp:
-                return self._get_fallback_channels()
-            soup = BeautifulSoup(resp.text, "lxml")
+        channels_list = []
+        if url.startswith("score808://match/"):
+            match_id = url.split("/")[-1]
+            try:
+                parsed_base = urlparse(self.base_url)
+                domain = parsed_base.netloc or "www.score808.tv"
 
-            for link in soup.find_all("a", href=True):
-                href = link.get("href", "")
-                if any(x in href for x in ["stream", "play", "watch", "embed", "m3u8"]):
-                    name = link.get_text().strip() or "Stream"
-                    quality = self._extract_quality(name, href)
-                    full_url = self._make_absolute(href)
-                    channels.append(StreamChannel(name=name, url=full_url, quality=quality))
+                detail_url = "https://cfapi.aifvfjuf56juh.cfd/api/ftb/detail"
+                params = {"d": domain, "lang": "1", "id": match_id}
+                api_headers = {
+                    "Accept": "application/json, text/plain, */*",
+                    "Origin": f"https://{domain}",
+                    "Referer": f"https://{domain}/?lang=1&matchId={match_id}",
+                }
 
-            for iframe in soup.find_all("iframe", src=True):
-                src = iframe["src"]
-                name = iframe.get("title", "").strip() or "Stream"
-                quality = self._extract_quality(name, src)
-                full_url = self._make_absolute(src)
-                channels.append(StreamChannel(name=name, url=full_url, quality=quality))
+                logger.info("Querying detail API for match %s", match_id)
+                resp = await self._get_with_retry(detail_url, params=params, headers=api_headers)
+                if resp:
+                    try:
+                        detail_data = resp.json()
+                        channels = detail_data.get("channels")
+                        if channels:
+                            logger.info("Found %d channels from detail API", len(channels))
+                            hosts = [
+                                "saten1-m2bpb.forbbpplay.cyou",
+                                "saten2-m2bpb.forbbpplay.cyou",
+                                "saten3-m2bpb.forbbpplay.cyou",
+                            ]
+                            for ch in channels:
+                                ch_id = ch.get("id")
+                                if not ch_id:
+                                    continue
+                                label = ch.get("label") or f"Stream {ch_id}"
+                                quality = self._extract_quality(label, "")
 
-            logger.info("Found %d channels on match page", len(channels))
-        except Exception:
-            logger.exception("Unexpected error in get_streams_from_match_page")
+                                for i, host in enumerate(hosts, 1):
+                                    stream_url = f"https://{host}/live/{ch_id}.m3u8"
+                                    channels_list.append(
+                                        StreamChannel(name=f"{label} (CDN Backup {i})", url=stream_url, quality=quality)
+                                    )
+                        else:
+                            logger.warning("No channels field or empty channels in detail API response")
+                    except Exception as e:
+                        logger.error("Failed to parse JSON response from detail API: %s", e)
+            except Exception:
+                logger.exception("Unexpected error in get_streams_from_match_page (API mode)")
+        else:
+            try:
+                resp = await self._get_with_retry(url)
+                if resp:
+                    soup = BeautifulSoup(resp.text, "lxml")
 
-        if not channels:
+                    for link in soup.find_all("a", href=True):
+                        href = link.get("href", "")
+                        if any(x in href for x in ["stream", "play", "watch", "embed", "m3u8"]):
+                            name = link.get_text().strip() or "Stream"
+                            quality = self._extract_quality(name, href)
+                            full_url = self._make_absolute(href)
+                            channels_list.append(StreamChannel(name=name, url=full_url, quality=quality))
+
+                    for iframe in soup.find_all("iframe", src=True):
+                        src = iframe["src"]
+                        name = iframe.get("title", "").strip() or "Stream"
+                        quality = self._extract_quality(name, src)
+                        full_url = self._make_absolute(src)
+                        channels_list.append(StreamChannel(name=name, url=full_url, quality=quality))
+
+                    logger.info("Found %d channels on legacy HTML match page", len(channels_list))
+            except Exception:
+                logger.exception("Unexpected error in get_streams_from_match_page (legacy HTML mode)")
+
+        if not channels_list:
             return self._get_fallback_channels()
-        return channels
+        return channels_list
 
     def _get_fallback_channels(self) -> list[StreamChannel]:
         return [
