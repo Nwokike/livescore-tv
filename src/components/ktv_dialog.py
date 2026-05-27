@@ -1,16 +1,13 @@
 import flet as ft
 
-from core.config import EXTERNAL_PLAYER_NAMES, KTV_PLAY_STORE_URL, KTV_UPTODOWN_URL
-from core.constants import LBL_DOWNLOAD_UPTODOWN, LBL_INSTALL_PLAYER, LBL_INSTALL_PLAYER_DESC, LBL_NOT_NOW
+from core.config import EXTERNAL_PLAYER_NAMES, KTV_PLAY_STORE_URL
+from core.constants import LBL_INSTALL_PLAYER, LBL_INSTALL_PLAYER_DESC, LBL_NOT_NOW
 from core.theme import AppTheme
 
 
 def show_ktv_install_dialog(page: ft.Page):
     def open_store(e):
         page.run_task(page.launch_url, KTV_PLAY_STORE_URL)
-
-    def open_uptodown(e):
-        page.run_task(page.launch_url, KTV_UPTODOWN_URL)
 
     def dismiss(e):
         try:
@@ -42,7 +39,11 @@ def show_ktv_install_dialog(page: ft.Page):
         ),
         actions=[
             ft.Button(content=ft.Text(LBL_NOT_NOW), on_click=dismiss),
-            ft.Button(content=ft.Text(LBL_DOWNLOAD_UPTODOWN), on_click=open_uptodown),
+            ft.Button(
+                content=ft.Text("Download from Play Store"),
+                on_click=open_store,
+                style=AppTheme.theme_button_style(is_primary=True),
+            ),
         ],
         actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
     )
