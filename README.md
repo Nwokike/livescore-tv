@@ -17,10 +17,11 @@
 
 ## Download
 
-Since we compile highly optimized standalone binaries target-specific to each processor architecture, choose the correct split APK for your device:
+Since we compile highly optimized standalone binaries target-specific to each processor architecture, Choose the highly optimized split APK for your device or the universal APK:
 
 | Platform | Download | Notes |
 |:--------:|:--------:|:------|
+| 🤖 **Android (Universal)** | [**livescore_tv.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv.apk) | Works on all Android devices (ARM64, ARMv7, x86_64) |
 | 🤖 **Android (ARM64)** | [**livescore_tv-arm64-v8a.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-arm64-v8a.apk) | For modern 64-bit Android devices / Android TV |
 | 🤖 **Android (ARM32)** | [**livescore_tv-armeabi-v7a.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-armeabi-v7a.apk) | For older 32-bit Android devices / TV Boxes |
 | 🤖 **Android (x86_64)** | [**livescore_tv-x86_64.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-x86_64.apk) | For Android emulators / ChromeOS |
