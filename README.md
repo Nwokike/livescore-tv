@@ -1,163 +1,75 @@
-# ⚽ Score808 TV
+<p align="center">
+  <img src="src/assets/icon.png" alt="Livescore TV" width="140" />
+</p>
 
-<div align="center">
+<h1 align="center">Livescore TV</h1>
 
-**Live football for everyone**
+<p align="center">
+  A lightweight, responsive, and completely serverless desktop/Android application built with Python and Flet for watching live football matches directly from high-speed streaming CDNs.
+</p>
 
-Lightweight client-side Android TV / mobile / desktop app for watching live football matches. Zero server. Built with Python and Flet.
-
-</div>
-
-<div align="center">
-
-[![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/user/score808-tv/releases)
-[![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/user/score808-tv/releases)
-[![Built with Flet 0.85](https://img.shields.io/badge/Built%20with-Flet%200.85-00B0FF?style=for-the-badge)](https://flet.dev)
-
-</div>
+<p align="center">
+  <img src="https://img.shields.io/badge/Android-3DDC84?style=flat-square&logo=android&logoColor=white" alt="Android" />
+  <img src="https://img.shields.io/badge/Built%20with-Flet%200.85-00B0FF?style=flat-square" alt="Built with Flet" />
+</p>
 
 ---
 
-## 📥 Downloads
+## Download
 
-| Platform | Download | Status |
-|----------|----------|--------|
-| Windows | [Installer (.exe)](https://github.com/user/score808-tv/releases) | Ready |
-| Android (Universal) | [APK](https://github.com/user/score808-tv/releases) | Ready |
-| Android (ARM64) | [APK](https://github.com/user/score808-tv/releases) | Ready |
-| macOS | — | *Coming soon* |
-| iOS | — | *Coming soon* |
+Since we compile highly optimized standalone binaries target-specific to each processor architecture, choose the correct split APK for your device:
 
----
-
-## ✨ Features
-
-- **Live Football** — Today's matches from major leagues worldwide
-- **Real-Time Scores** — Live match scores and status updates
-- **Multi-Stream Support** — Multiple stream sources per match
-- **Clean Interface** — Ad-free, distraction-free viewing
-- **Dark/Light Mode** — System theme awareness with manual override
-- **TV Remote Navigation** — Full D-pad support for Android TV and Fire Stick
-- **No Server Required** — Fully client-side, zero infrastructure
-- **Offline Resilient** — Local caching with graceful error handling
+| Platform | Download | Notes |
+|:--------:|:--------:|:------|
+| 🤖 **Android (ARM64)** | [**livescore_tv-arm64-v8a.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-arm64-v8a.apk) | For modern 64-bit Android devices / Android TV |
+| 🤖 **Android (ARM32)** | [**livescore_tv-armeabi-v7a.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-armeabi-v7a.apk) | For older 32-bit Android devices / TV Boxes |
+| 🤖 **Android (x86_64)** | [**livescore_tv-x86_64.apk**](https://github.com/Nwokike/livescore-tv/releases/latest/download/livescore_tv-x86_64.apk) | For Android emulators / ChromeOS |
 
 ---
+
+## Features
+
+- **Redirection-Free Stream Resolution** — Parses homepage Nuxt state (`window.__NUXT__`) and resolves channels directly from Cloudflare-protected JSON APIs, bypassing edge redirection locks.
+- **High-Speed CDN Playback** — Plays streams directly from high-performance edge streaming servers (`saten1`, `saten2`, `saten3`) with zero intermediary servers.
+- **Failover Backup CDNs** — Automatically provides 3 backup stream hosts per broadcasting channel to ensure uninterrupted viewing.
+- **Dynamic Liveliness Checker** — Spawns non-blocking async background workers to query stream URLs (`HEAD` / Range `GET`) and updates a live green/red status indicator dot next to each stream quality badge.
+- **TV Remote Ready** — Full sequential D-pad focus routing and scaling highlights optimized for Android TV, Fire Stick, and remote controls.
+- **Elegant Themes** — System-aware light/dark mode configuration utilizing Glassmorphism design and harmonized color systems.
+- **Offline-First Cache** — SQLite async cache with WAL-mode and NORMAL sync configurations for instant matching, search queries, and stream lookup operations.
 
 ## Architecture
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Flet 0.85 (Python → Flutter) |
-| Video Engine | `flet-video` (libmpv backend) |
-| Network | `httpx` (async, connection pooling, retry logic) |
-| Cache | `aiosqlite` (WAL-mode SQLite with TTL) + in-memory LRU |
-| Stream Resolver | HTML scraper with regex m3u8 extraction |
-| Match Data | Livescore.com public API |
-| State Management | Flet `@observable` reactive state |
-| Routing | Flet declarative routing with view stack |
-| Navigation | Sequential `tab_index` D-pad focus chain |
-
-### Project Structure
-
-```
-src/
-├── main.py                 # App entry, routing, global back handler
-├── core/
-│   ├── config.py           # Feature flags (internal/external player)
-│   ├── constants.py        # App labels, timeouts, cache TTLs
-│   ├── controller.py       # AppController: routing, state, rate limiting
-│   ├── errors.py           # Custom exception types
-│   ├── focus_manager.py    # D-pad/keyboard event handling for TV remotes
-│   ├── state.py            # @observable reactive state (AppState)
-│   └── theme.py            # Light/dark color schemes, theme helpers
-├── views/
-│   ├── splash.py           # Animated splash with auto-transition
-│   ├── home.py             # Match list grouped by league, refresh, search
-│   ├── search.py           # Search bar with debounce + results
-│   ├── match_detail.py     # Match info + stream channel list
-│   └── player.py           # flet-video player with loading overlay
-├── services/
-│   ├── cache.py            # Async SQLite cache with TTL + LRU memory cache
-│   ├── livescore.py        # Livescore API client with retry logic
-│   └── score808.py         # HTML scraper for stream URL resolution
-└── components/
-    ├── channel_card.py     # Stream channel list item
-    ├── ktv_dialog.py       # External player install dialog
-    ├── loading_state.py    # Loading/empty/error state builders
-    └── match_card.py       # Match list item card
-```
-
-### Stream Resolution Pipeline
-
-```
-User selects match
-    │
-    ▼
-controller.load_streams(match)
-    │
-    ├── Check cache (TTL: 60s)
-    │
-    ├── scraper.find_match_page_by_id(match_id)
-    │       └── fallback: scraper.find_match_page(home, away)
-    │
-    ├── scraper.get_streams_from_match_page(url)
-    │       └── Parse <a> and <iframe> for stream links
-    │
-    └── User clicks stream
-            │
-            ▼
-        controller.play_stream(channel)
-            │
-            ├── scraper.resolve_stream_url(channel_url)
-            │       └── regex: extract .m3u8 or iframe URL
-            │
-            └── Navigate to /play → flet-video loads stream
-```
-
-### D-Pad Navigation Model
-
-Every interactive element has a sequential `tab_index` for Android TV FocusFinder:
-
-```
-Home:    Refresh(1) → Search(2) → Theme(3) → Cards(4..N)
-Search:  Back(0) → SearchBtn(1) → Cards(2..N)
-Match:   Back(0) → Streams(10..N)
-Player:  Back(1)
-```
-
-Focus highlights animate scale, shadow, and border via `on_focus`/`on_blur` callbacks.
+| Frontend | Flet 0.85 (Python → Flutter UI Engine) |
+| Video | `flet-video` (libmpv HLS media engine) |
+| Database | `aiosqlite` (async WAL-mode SQLite cache) |
+| Network | `httpx` (async client, connection pooling, retries) |
+| Scraper | nuxt state parser & direct detail API resolver |
 
 ---
 
-## 🛠️ Development
+## Development
+
+Set up your local machine to build or run the application:
 
 ```bash
-# Clone and set up
-git clone https://github.com/user/score808-tv.git
-cd score808-tv
+# Clone the repository
+git clone https://github.com/Nwokike/livescore-tv.git
+cd livescore-tv
+
+# Install dev dependencies
 uv sync
 
-# Run in development
+# Run the app locally
 uv run flet run src
 
-# Lint
-uv run ruff check src/
-
-# Build for Android
-uv run flet build apk --release
-
-# Build for Windows
-uv run flet build windows --release
+# Verify the test suite
+uv run python -m unittest discover -s tests
 ```
-
----
-
-## 📄 License
-
-MIT
 
 ---
 
 ## Legal Disclaimer
 
-Score808 TV is a media player and network utility. It does not host, store, or distribute any copyrighted content. The app interfaces with publicly available APIs and web pages. Users are solely responsible for ensuring compliance with applicable laws and terms of service in their jurisdiction.
+Livescore TV is a media player and network utility. It does not host, store, or distribute any copyrighted media streams. The application interfaces with publicly accessible APIs and web pages. Users are solely responsible for ensuring compliance with all local laws and terms of service regarding third-party broadcast resources.
