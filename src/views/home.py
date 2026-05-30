@@ -257,21 +257,6 @@ def build_home_view(
             on_click=lambda _, dt_str=d_str: on_date_selected(dt_str),
         )
 
-        def on_focus_change(e):
-            focused = e.data == "true"
-            if focused:
-                e.control.scale = 1.05
-                if not (state.selected_date == d_str):
-                    e.control.border = ft.Border.all(2, AppColors.PRIMARY)
-                    e.control.bgcolor = ft.Colors.with_opacity(0.12, AppColors.PRIMARY)
-            else:
-                e.control.scale = 1.0
-                if not (state.selected_date == d_str):
-                    e.control.border = ft.Border.all(1, ft.Colors.with_opacity(0.1, ft.Colors.ON_SURFACE))
-                    e.control.bgcolor = ft.Colors.with_opacity(0.05, ft.Colors.ON_SURFACE)
-            e.control.update()
-
-        container.on_focus = on_focus_change
         container.tab_index = idx + 10
         return container
 
