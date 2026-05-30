@@ -98,14 +98,14 @@ class AppTheme:
         )
 
     @staticmethod
-    def theme_button_style(is_primary: bool = False):
+    def theme_button_style():
         return ft.ButtonStyle(
             bgcolor={
                 ft.ControlState.FOCUSED: AppColors.PRIMARY,
-                ft.ControlState.DEFAULT: AppColors.PRIMARY if is_primary else ft.Colors.SURFACE,
+                ft.ControlState.DEFAULT: ft.Colors.SURFACE,
             },
             color={
                 ft.ControlState.FOCUSED: ft.Colors.WHITE,
-                ft.ControlState.DEFAULT: ft.Colors.WHITE if is_primary else ft.Colors.ON_SURFACE,
+                ft.ControlState.DEFAULT: ft.Colors.ON_SURFACE,
             },
         )

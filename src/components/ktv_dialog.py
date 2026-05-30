@@ -22,7 +22,7 @@ def show_ktv_install_dialog(page: ft.Page):
                 content=ft.Text(name),
                 icon=ft.Icons.PLAY_CIRCLE_ROUNDED,
                 on_click=open_store,
-                style=AppTheme.theme_button_style(is_primary=(name == "KTV Player")),
+                style=AppTheme.theme_button_style(),
             )
         )
 
@@ -42,7 +42,7 @@ def show_ktv_install_dialog(page: ft.Page):
             ft.Button(
                 content=ft.Text("Download from Play Store"),
                 on_click=open_store,
-                style=AppTheme.theme_button_style(is_primary=True),
+                style=AppTheme.theme_button_style(),
             ),
         ],
         actions_alignment=ft.MainAxisAlignment.SPACE_BETWEEN,

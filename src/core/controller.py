@@ -336,15 +336,15 @@ class AppController:
         encoded_url = base64.urlsafe_b64encode(resolved_url.encode()).decode()
         deep_link = f"{KTV_DEEP_LINK_SCHEME}{encoded_url}"
 
-        launched = False
+        launcher = ft.UrlLauncher()
         try:
-            await self.page.launch_url(deep_link)
-            launched = True
+            if await launcher.can_launch_url(deep_link):
+                await launcher.launch_url(deep_link)
+                return
         except Exception:
             pass
 
-        if not launched:
-            show_ktv_install_dialog(self.page)
+        show_ktv_install_dialog(self.page)
 
     async def select_and_navigate(self, match):
         state.selected_match = match
