@@ -1,4 +1,4 @@
-USE_EXTERNAL_PLAYER = False
+USE_EXTERNAL_PLAYER = True
 
 KTV_PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=ng.kiri.ktvplayer"
 

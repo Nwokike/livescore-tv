@@ -22,7 +22,6 @@ from core.state import Match, StreamChannel, state
 from core.theme import AppColors, AppTheme
 from views.home import build_home_view
 from views.match_detail import build_match_detail_view
-from views.player import build_player_view
 from views.search import build_search_view
 from views.splash import build_splash_view
 
@@ -142,17 +141,9 @@ class AppController:
 
     def handle_global_back(self):
         if len(self.page.views) > 1:
-            top_view = self.page.views[-1]
-            route = getattr(top_view, "route", "")
-            if route.startswith("/play"):
-                for control in top_view.controls:
-                    if hasattr(control, "pause"):
-                        try:
-                            control.pause()
-                        except Exception:
-                            pass
-                state.reset_player()
             self.page.views.pop()
+            if self.page.views:
+                self.page.route = self.page.views[-1].route
             self.page.update()
 
     async def navigate(self, route: str):
