@@ -1,7 +1,6 @@
 import flet as ft
 
 from core.constants import CARD_HEIGHT
-from core.focus_manager import make_focusable_card
 from core.state import Match
 from core.theme import AppColors
 
@@ -143,6 +142,5 @@ def build_match_card(
         tooltip=f"{match.home_team} vs {match.away_team}",
     )
     card_container.tab_index = idx + 3
-    make_focusable_card(card_container)
 
     return card_container

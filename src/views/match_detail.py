@@ -3,7 +3,6 @@ import flet as ft
 from components.channel_card import build_channel_card
 from components.loading_state import build_empty_state, build_loading_centered
 from core.constants import LBL_AVAILABLE_STREAMS, LBL_NO_STREAMS
-from core.focus_manager import make_focusable_button
 from core.state import Match, state
 from core.theme import AppColors
 
@@ -98,7 +97,6 @@ def build_match_detail_view(
         tooltip="Back",
     )
     back_btn.tab_index = 0
-    make_focusable_button(back_btn)
 
     score_text = ""
     if is_live and (match.home_score or match.away_score):

@@ -1,6 +1,5 @@
 import flet as ft
 
-from core.focus_manager import make_focusable_card
 from core.state import StreamChannel
 from core.theme import AppColors
 
@@ -73,5 +72,4 @@ def build_channel_card(
         tooltip=f"Play {channel.name}",
     )
     card.tab_index = idx + 10
-    make_focusable_card(card)
     return card

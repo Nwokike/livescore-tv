@@ -1,7 +1,6 @@
 import flet as ft
 
 from core.constants import LBL_LOADING_STREAM, LBL_PLAYBACK_ENDED, LBL_PLAYBACK_ERROR, LBL_STREAM_FAILED
-from core.focus_manager import make_focusable_button
 from core.state import state
 from core.theme import AppColors
 
@@ -76,7 +75,6 @@ def build_player_view(
         ),
     )
     back_btn.tab_index = 1
-    make_focusable_button(back_btn)
 
     async def load_stream():
         try:

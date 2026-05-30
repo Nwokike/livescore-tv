@@ -3,7 +3,6 @@ import flet as ft
 from components.loading_state import build_empty_state, build_loading_centered
 from components.match_card import build_match_card
 from core.constants import APP_NAME
-from core.focus_manager import make_focusable_button, make_focusable_tile
 from core.state import state
 from core.theme import AppColors
 
@@ -122,7 +121,6 @@ def build_home_view(
                     on_click=lambda e, t=exp_tile: setattr(t, "expanded", not t.expanded) or t.update(),
                 )
                 tile_wrapper.tab_index = 0
-                make_focusable_tile(tile_wrapper, exp_tile)
 
                 leagues_column.controls.append(tile_wrapper)
 
@@ -172,7 +170,6 @@ def build_home_view(
         tooltip="Toggle theme",
     )
     theme_btn.tab_index = 2
-    make_focusable_button(theme_btn)
 
     refresh_btn = ft.Container(
         content=ft.Icon(ft.Icons.REFRESH_ROUNDED, color=ft.Colors.ON_SURFACE),
@@ -183,7 +180,6 @@ def build_home_view(
         tooltip="Refresh",
     )
     refresh_btn.tab_index = 3
-    make_focusable_button(refresh_btn)
 
     header = ft.Container(
         padding=ft.Padding.only(left=20, right=20, top=20, bottom=12),

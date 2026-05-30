@@ -5,7 +5,6 @@ import flet as ft
 from components.loading_state import build_empty_state, build_loading_centered
 from components.match_card import build_match_card
 from core.constants import LBL_NO_RESULTS, LBL_SEARCH_HINT, MAX_SEARCH_QUERY_LENGTH, SEARCH_DEBOUNCE_SEC
-from core.focus_manager import make_focusable_button
 from core.state import state
 from core.theme import AppColors
 
@@ -101,7 +100,6 @@ def build_search_view(
         tooltip="Back",
     )
     back_btn.tab_index = 0
-    make_focusable_button(back_btn)
 
     search_btn = ft.Container(
         content=ft.Icon(ft.Icons.SEARCH_ROUNDED, color=AppColors.PRIMARY),
@@ -111,7 +109,6 @@ def build_search_view(
         on_click=lambda _: _do_search(search_field.value),
     )
     search_btn.tab_index = 1
-    make_focusable_button(search_btn)
 
     search_spinner = ft.ProgressRing(color=AppColors.PRIMARY, stroke_width=3, width=20, height=20, visible=False)
 
